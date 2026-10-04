@@ -6,14 +6,16 @@ const num = (value, fallback) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+const isProd = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+
 module.exports = {
   port: num(process.env.PORT, 5000),
-  isProduction: process.env.NODE_ENV === "production",
-  clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
+  isProduction: isProd,
+  clientUrl: process.env.CLIENT_URL || "*",
 
-  mongodbUri: process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/pdf-chat",
+  mongodbUri: process.env.MONGODB_URI || (isProd ? undefined : "mongodb://127.0.0.1:27017/pdf-chat"),
 
-  qdrantUrl: process.env.QDRANT_URL || "http://localhost:6333",
+  qdrantUrl: process.env.QDRANT_URL || (isProd ? undefined : "http://localhost:6333"),
   qdrantApiKey: process.env.QDRANT_API_KEY || undefined,
   collectionName: process.env.QDRANT_COLLECTION || "pdf_documents",
 

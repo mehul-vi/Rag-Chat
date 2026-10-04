@@ -43,8 +43,8 @@ app.use("/api/pdf", limiter(30), pdfRoutes);
 app.use("/api/chat", limiter(200), chatRoutes);
 app.use("/api/history", limiter(400), historyRoutes);
 
-app.get("/", (req, res) => res.json({ message: "PDF RAG Chat API is running" }));
-app.get("/health", (req, res) => res.json({ success: true, status: "ok" }));
+app.get(["/", "/api"], (req, res) => res.json({ message: "PDF RAG Chat API is running" }));
+app.get(["/health", "/api/health"], (req, res) => res.json({ success: true, status: "ok" }));
 
 // Central error handler.
 app.use((error, req, res, next) => {
