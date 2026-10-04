@@ -7,11 +7,19 @@ const start = async () => {
   try {
     await connectDB();
     await createCollection();
-    app.listen(port, () => console.log(`Server running on port ${port}`));
+    if (!process.env.VERCEL) {
+      app.listen(port, () => console.log(`Server running on port ${port}`));
+    }
   } catch (error) {
     console.error("Server Startup Error:", error.message);
-    process.exit(1);
+    if (!process.env.VERCEL) {
+      process.exit(1);
+    }
   }
 };
 
-start();
+if (!process.env.VERCEL && require.main === module) {
+  start();
+}
+
+module.exports = app;
