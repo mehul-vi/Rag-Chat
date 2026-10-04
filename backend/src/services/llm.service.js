@@ -1,6 +1,5 @@
 const { createGroq } = require("@ai-sdk/groq");
 const { generateText } = require("ai");
-const { groqApiKey, groqModel } = require("../config/env");
 
 const SYSTEM_PROMPT = `You are a friendly, intelligent PDF assistant. You get the user's question and, when available, document information (such as filename and total page count) and relevant passages from their uploaded PDF.
 
@@ -28,6 +27,9 @@ const parseReply = (text, hasContext) => {
 
 // Returns { answer, usedDocument }.
 const generateAnswer = async (question, context = "") => {
+  const groqApiKey = process.env.GROQ_API_KEY;
+  const groqModel = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+
   if (!groqApiKey) {
     throw new Error("GROQ_API_KEY is missing. Add it to .env.");
   }

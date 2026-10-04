@@ -2,7 +2,6 @@ const { generateEmbedding } = require("../services/embedding.service");
 const { searchSimilarChunks } = require("../services/vector.service");
 const { generateAnswer } = require("../services/llm.service");
 const { buildContext } = require("../utils/prompt");
-const { topK, minScore } = require("../config/env");
 
 const MAX_QUESTION_LENGTH = 1000;
 
@@ -41,6 +40,9 @@ const chat = async (req, res) => {
   if (!documentId || typeof documentId !== "string") {
     return badRequest(res, "documentId is required. Upload a PDF first.");
   }
+
+  const topK = Number(process.env.TOP_K || 5);
+  const minScore = Number(process.env.MIN_SCORE || 0.35);
 
   const queryEmbedding = await generateEmbedding(question);
   const matches = await searchSimilarChunks(queryEmbedding, documentId, topK);

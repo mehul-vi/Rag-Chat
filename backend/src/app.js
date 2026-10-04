@@ -1,8 +1,8 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const rateLimit = require("express-rate-limit");
-const { clientUrl, isProduction } = require("./config/env");
 
 const pdfRoutes = require("./routes/pdf.routes");
 const chatRoutes = require("./routes/chat.routes");
@@ -24,6 +24,7 @@ app.use((req, res, next) => {
   next();
 });
 
+const clientUrl = process.env.CLIENT_URL || "*";
 const origins = clientUrl.split(",").map((o) => o.trim().replace(/\/$/, ""));
 app.use(
   cors({
@@ -62,6 +63,7 @@ app.get(["/health", "/api/health"], (req, res) => res.json({ success: true, stat
 app.use((error, req, res, next) => {
   const status = error instanceof multer.MulterError ? 400 : error.status || 500;
   const isServerError = status >= 500;
+  const isProduction = process.env.NODE_ENV === "production";
 
   if (isServerError) console.error("Unhandled Error:", error);
 

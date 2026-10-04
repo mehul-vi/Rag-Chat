@@ -1,14 +1,27 @@
 const crypto = require("crypto");
 const { QdrantClient } = require("@qdrant/js-client-rest");
-const { qdrantUrl, qdrantApiKey, collectionName, embeddingDim } = require("../config/env");
 
-const client = new QdrantClient({ url: qdrantUrl, apiKey: qdrantApiKey });
+const getCollectionName = () => process.env.QDRANT_COLLECTION || "pdf_documents";
+const getEmbeddingDim = () => Number(process.env.EMBEDDING_DIM) || 768;
+
+let qdrantClient = null;
+const getClient = () => {
+  if (!qdrantClient) {
+    const url = process.env.QDRANT_URL || "http://localhost:6333";
+    const apiKey = process.env.QDRANT_API_KEY || undefined;
+    qdrantClient = new QdrantClient({ url, apiKey });
+  }
+  return qdrantClient;
+};
+
 const UPSERT_BATCH_SIZE = 100;
-
 let collectionChecked = false;
 
 const createCollection = async () => {
   try {
+    const client = getClient();
+    const collectionName = getCollectionName();
+    const embeddingDim = getEmbeddingDim();
     const { collections } = await client.getCollections();
 
     if (!collections.some((c) => c.name === collectionName)) {
@@ -42,6 +55,8 @@ const ensureCollection = async () => {
 // Stores all chunks of one uploaded document with metadata
 const storeEmbeddings = async (chunks, fileName, documentId, totalPages) => {
   await ensureCollection();
+  const client = getClient();
+  const collectionName = getCollectionName();
   const totalPagesCount = totalPages || chunks[chunks.length - 1]?.pageNumber || 1;
   const points = chunks.map((chunk) => ({
     id: crypto.randomUUID(),
@@ -68,6 +83,8 @@ const storeEmbeddings = async (chunks, fileName, documentId, totalPages) => {
 // Searches only inside one document, so users never see other PDFs
 const searchSimilarChunks = async (queryEmbedding, documentId, limit) => {
   await ensureCollection();
+  const client = getClient();
+  const collectionName = getCollectionName();
   const result = await client.query(collectionName, {
     query: queryEmbedding,
     limit,

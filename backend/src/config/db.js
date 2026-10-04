@@ -1,10 +1,10 @@
 const mongoose = require("mongoose");
-const { mongodbUri } = require("./env");
 
 let isConnected = false;
 
 const connectDB = async () => {
   if (isConnected) return;
+  const mongodbUri = process.env.MONGODB_URI;
   if (!mongodbUri) {
     console.warn("MONGODB_URI is not set. MongoDB chat history is disabled.");
     return;

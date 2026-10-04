@@ -1,7 +1,8 @@
 const app = require("./app");
-const { port } = require("./config/env");
 const { connectDB } = require("./config/db");
 const { createCollection } = require("./services/vector.service");
+
+const port = Number(process.env.PORT) || 5000;
 
 const start = async () => {
   try {

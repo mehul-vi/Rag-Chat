@@ -1,12 +1,4 @@
 const { GoogleGenAI } = require("@google/genai");
-const {
-  embeddingProvider,
-  embeddingDim,
-  geminiApiKey,
-  geminiEmbeddingModel,
-  ollamaUrl,
-  ollamaEmbeddingModel,
-} = require("../config/env");
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -34,8 +26,9 @@ const embedInBatches = async (texts, batchSize, embedBatch) => {
 
 let geminiClient;
 const getGemini = () => {
+  const geminiApiKey = process.env.GEMINI_API_KEY;
   if (!geminiApiKey) {
-    throw new Error("GEMINI_API_KEY is missing. Add it to .env or set EMBEDDING_PROVIDER=ollama.");
+    throw new Error("GEMINI_API_KEY is missing. Add it to .env.");
   }
   geminiClient ??= new GoogleGenAI({ apiKey: geminiApiKey });
   return geminiClient;
@@ -43,6 +36,9 @@ const getGemini = () => {
 
 const geminiEmbed = (texts, taskType) => {
   const ai = getGemini(); // fail fast on a missing key, before any retry
+  const geminiEmbeddingModel = process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-001";
+  const embeddingDim = Number(process.env.EMBEDDING_DIM) || 768;
+
   return embedInBatches(texts, 50, async (batch) => {
     const response = await ai.models.embedContent({
       model: geminiEmbeddingModel,
@@ -53,27 +49,10 @@ const geminiEmbed = (texts, taskType) => {
   });
 };
 
-const ollamaEmbed = (texts) =>
-  embedInBatches(texts, 20, async (batch) => {
-    const response = await fetch(`${ollamaUrl}/api/embed`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: ollamaEmbeddingModel, input: batch }),
-    });
-    if (!response.ok) throw new Error(await response.text());
-    return (await response.json()).embeddings;
-  });
-
-const providers = { gemini: geminiEmbed, ollama: ollamaEmbed };
-const embedWithProvider = providers[embeddingProvider];
-
-if (!embedWithProvider) {
-  throw new Error(`Unknown EMBEDDING_PROVIDER "${embeddingProvider}". Use "gemini" or "ollama".`);
-}
-
 const embedMany = async (texts, taskType) => {
   try {
-    const vectors = await embedWithProvider(texts, taskType);
+    const embeddingDim = Number(process.env.EMBEDDING_DIM) || 768;
+    const vectors = await geminiEmbed(texts, taskType);
 
     if (vectors.length !== texts.length) {
       throw new Error(`Expected ${texts.length} embeddings but got ${vectors.length}`);
