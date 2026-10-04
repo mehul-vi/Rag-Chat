@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="50%" stop-color="#7C3AED" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </linearGradient>
+    <linearGradient id="foldGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.1" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background rounded card -->
+  <rect width="48" height="48" rx="12" fill="url(#bgGrad)" />
+
+  <!-- Document outline -->
+  <path
+    d="M14 12C14 10.8954 14.8954 10 16 10H27L34 17V36C34 37.1046 33.1046 38 32 38H16C14.8954 38 14 37.1046 14 36V12Z"
+    fill="#0F172A"
+    fill-opacity="0.55"
+    stroke="#FFFFFF"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Fold corner -->
+  <path
+    d="M27 10V17H34"
+    stroke="#FFFFFF"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="url(#foldGrad)"
+  />
+
+  <!-- Sparkle / AI star in center -->
+  <path
+    d="M24 20C24 22.8 25.4 24.5 28.5 24.5C25.4 24.5 24 26.2 24 29C24 26.2 22.6 24.5 19.5 24.5C22.6 24.5 24 22.8 24 20Z"
+    fill="#38BDF8"
+    filter="url(#glow)"
+  />
+
+  <circle cx="19" cy="18" r="1.2" fill="#F472B6" />
+  <circle cx="29" cy="31" r="1.2" fill="#A78BFA" />
+</svg>
