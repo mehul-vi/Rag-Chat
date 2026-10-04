@@ -7,10 +7,22 @@ const { clientUrl, isProduction } = require("./config/env");
 const pdfRoutes = require("./routes/pdf.routes");
 const chatRoutes = require("./routes/chat.routes");
 const historyRoutes = require("./routes/history.routes");
+const { connectDB } = require("./config/db");
 
 const app = express();
 
-app.set("trust proxy", 1); // needed behind Render's proxy for rate limiting
+app.set("trust proxy", 1); // needed behind Render/Vercel proxy for rate limiting
+
+let dbPromise = null;
+app.use((req, res, next) => {
+  if (!dbPromise) {
+    dbPromise = connectDB().catch((err) => {
+      console.warn("DB connection notice:", err.message);
+      dbPromise = null;
+    });
+  }
+  next();
+});
 
 const origins = clientUrl.split(",").map((o) => o.trim().replace(/\/$/, ""));
 app.use(
