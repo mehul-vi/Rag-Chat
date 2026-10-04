@@ -13,7 +13,21 @@ const app = express();
 app.set("trust proxy", 1); // needed behind Render's proxy for rate limiting
 
 const origins = clientUrl.split(",").map((o) => o.trim().replace(/\/$/, ""));
-app.use(cors({ origin: origins }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const isAllowed =
+        origins.includes(origin) ||
+        origins.includes("*") ||
+        /\.vercel\.app$/.test(origin) ||
+        origin.includes("localhost");
+      if (isAllowed) return callback(null, true);
+      return callback(null, true);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: "500kb" }));
 
 const limiter = (max) =>
