@@ -1,6 +1,18 @@
-const { createGroq } = require("@ai-sdk/groq");
-const { generateText } = require("ai");
 const { groqApiKey, groqModel } = require("../config/env");
+
+let aiSdkPromise = null;
+const getAiSdk = async () => {
+  if (!aiSdkPromise) {
+    aiSdkPromise = Promise.all([
+      import("@ai-sdk/groq"),
+      import("ai"),
+    ]).then(([groqMod, aiMod]) => ({
+      createGroq: groqMod.createGroq,
+      generateText: aiMod.generateText,
+    }));
+  }
+  return aiSdkPromise;
+};
 
 const SYSTEM_PROMPT =
   "You answer questions using ONLY the supplied PDF context. " +
@@ -20,6 +32,7 @@ const generateAnswer = async (question, context) => {
     throw new Error("GROQ_API_KEY is missing. Add it to .env.");
   }
 
+  const { createGroq, generateText } = await getAiSdk();
   const groq = createGroq({ apiKey: groqApiKey });
   const result = await generateText({
     model: groq(groqModel),

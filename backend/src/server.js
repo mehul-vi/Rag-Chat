@@ -22,6 +22,18 @@ app.use("/api", apiRoutes);
 app.use((req, res) => res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` }));
 app.use(errorHandler);
 
+// Lazy collection initialization for serverless / local
+let collectionPromise = null;
+app.use((req, res, next) => {
+  if (!collectionPromise) {
+    collectionPromise = initCollection().catch((err) => {
+      console.warn("[Qdrant] Collection init notice:", err.message);
+      collectionPromise = null;
+    });
+  }
+  next();
+});
+
 async function startServer() {
   try {
     await initCollection();
@@ -31,4 +43,9 @@ async function startServer() {
     process.exitCode = 1;
   }
 }
-startServer();
+
+if (!process.env.VERCEL && require.main === module) {
+  startServer();
+}
+
+module.exports = app;
