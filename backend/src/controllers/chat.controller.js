@@ -1,90 +1,46 @@
 const { generateEmbedding } = require("../services/embedding.service");
-const { searchSimilarChunks } = require("../services/vector.service");
+const { searchSimilarChunks } = require("../models/vector.model");
 const { generateAnswer } = require("../services/llm.service");
+const { buildContext } = require("../utils/prompt");
+const { embeddingDimensions } = require("../config/env");
 
-const buildContext = (results, meta = {}) => {
-  let header = "";
-  if (meta.fileName || meta.totalPages) {
-    header = `[Document Information: File "${meta.fileName || 'Uploaded Document'}" | Total Pages: ${meta.totalPages || 'Unknown'} | Total Indexed Chunks: ${meta.totalChunks || results.length}]\n\n`;
+const TOP_K = Number(process.env.RAG_TOP_K || 6);
+const MIN_SCORE = Number(process.env.RAG_MIN_SCORE || 0.25);
+
+async function chat(req, res, next) {
+  try {
+    const question = typeof req.body?.question === "string" ? req.body.question.trim() : "";
+    const documentId = typeof req.body?.documentId === "string" ? req.body.documentId.trim() : "";
+    if (!question) return res.status(400).json({ success: false, message: "question is required." });
+    if (!documentId) return res.status(400).json({ success: false, message: "documentId is required. Upload a PDF first." });
+    if (question.length > 4000) return res.status(400).json({ success: false, message: "Question is too long (maximum 4000 characters)." });
+
+    const queryEmbedding = await generateEmbedding(question, "RETRIEVAL_QUERY");
+    if (queryEmbedding.length !== embeddingDimensions) throw new Error("Query embedding dimensions do not match the Qdrant collection.");
+
+    const matches = await searchSimilarChunks(queryEmbedding, documentId, TOP_K);
+    const results = matches.filter((item) => Number(item.score) >= MIN_SCORE);
+    if (!results.length) {
+      return res.json({
+        success: true,
+        question,
+        answer: "I couldn't find enough relevant information in this PDF to answer confidently. Try rephrasing your question.",
+        sources: [],
+      });
+    }
+
+    const answer = await generateAnswer(question, buildContext(results));
+    const sources = results.map((result) => ({
+      fileName: result.payload?.fileName || "document.pdf",
+      pageNumber: result.payload?.pageNumber ?? null,
+      chunkIndex: result.payload?.chunkIndex ?? null,
+      score: Number(Number(result.score).toFixed(3)),
+      snippet: String(result.payload?.text || "").slice(0, 280),
+    }));
+    return res.json({ success: true, question, answer, sources });
+  } catch (error) {
+    return next(error);
   }
-
-  const passages = results
-    .map((result, index) => {
-      const { fileName, pageNumber, text } = result.payload;
-      return `[Source ${index + 1} | ${fileName} | Page ${pageNumber}]\n${text}`;
-    })
-    .join("\n\n---\n\n");
-
-  return header + (passages || "(No specific text passages matched)");
-};
-
-const MAX_QUESTION_LENGTH = 1000;
-
-const badRequest = (res, message) => res.status(400).json({ success: false, message });
-
-const toSource = ({ score, payload }) => ({
-  fileName: payload.fileName,
-  pageNumber: payload.pageNumber,
-  chunkIndex: payload.chunkIndex,
-  score: Number(score.toFixed(3)),
-  snippet: payload.text.slice(0, 200),
-});
-
-// Detect metadata questions (e.g., page count, file name)
-const isMetaQuery = (text) => {
-  const lower = text.toLowerCase();
-  return (
-    lower.includes("how many pages") ||
-    lower.includes("page count") ||
-    lower.includes("number of pages") ||
-    lower.includes("total pages") ||
-    lower.includes("name of this file") ||
-    lower.includes("filename") ||
-    lower.includes("what is the file")
-  );
-};
-
-const chat = async (req, res) => {
-  const { question: rawQuestion, documentId } = req.body ?? {};
-  const question = typeof rawQuestion === "string" ? rawQuestion.trim() : "";
-
-  if (!question) return badRequest(res, "Question is required");
-  if (question.length > MAX_QUESTION_LENGTH) {
-    return badRequest(res, `Question is too long (max ${MAX_QUESTION_LENGTH} characters)`);
-  }
-  if (!documentId || typeof documentId !== "string") {
-    return badRequest(res, "documentId is required. Upload a PDF first.");
-  }
-
-  const topK = Number(process.env.TOP_K || 5);
-  const minScore = Number(process.env.MIN_SCORE || 0.35);
-
-  const queryEmbedding = await generateEmbedding(question);
-  const matches = await searchSimilarChunks(queryEmbedding, documentId, topK);
-
-  // Weak matches are dropped
-  const results = matches.filter((match) => match.score >= minScore);
-
-  // Extract document metadata from matched chunks
-  const samplePayload = matches[0]?.payload || {};
-  const maxPageFromMatches = matches.length
-    ? Math.max(...matches.map((m) => m.payload?.pageNumber || 1))
-    : 1;
-
-  const docMeta = {
-    fileName: samplePayload.fileName || "",
-    totalPages: samplePayload.totalPages || maxPageFromMatches,
-    totalChunks: samplePayload.totalChunks || matches.length,
-  };
-
-  const context = buildContext(results, docMeta);
-  const { answer, usedDocument } = await generateAnswer(question, context);
-
-  // For pure metadata questions (like "how many pages are in this PDF?"), don't show noisy page snippet citations
-  const isMetadata = isMetaQuery(question);
-  const sources = usedDocument && !isMetadata ? results.map(toSource) : [];
-
-  res.json({ success: true, question, answer, sources });
-};
+}
 
 module.exports = { chat };
