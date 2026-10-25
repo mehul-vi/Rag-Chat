@@ -8,21 +8,25 @@ const errorHandler = require("./middleware/error.middleware");
 
 const app = express();
 app.disable("x-powered-by");
-const allowedOrigins = process.env.CORS_ORIGIN || process.env.CLIENT_URL;
-app.use(cors({ origin: allowedOrigins ? allowedOrigins.split(",").map((value) => value.trim()) : true }));
-app.use(express.json({ limit: "1mb" }));
 
-app.get("/", (req, res) => res.json({
-  success: true,
-  message: "PDF Chat API is running",
-  endpoints: { health: "GET /api/health", upload: "POST /api/pdf/upload", chat: "POST /api/chat" },
-}));
-app.get(["/health", "/api/health"], (req, res) => res.json({ success: true, status: "ok", maxUploadMb }));
-app.use("/api", apiRoutes);
-app.use((req, res) => res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` }));
-app.use(errorHandler);
+// Global bulletproof CORS headers for all incoming requests (Vercel, localhost, preview URLs)
+app.use((req, res, next) => {
+  const origin = req.headers.origin || "*";
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
 
-// Lazy collection initialization for serverless / local
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
+  next();
+});
+
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json({ limit: "2mb" }));
+
+// Lazy Qdrant collection initialization for serverless / local
 let collectionPromise = null;
 app.use((req, res, next) => {
   if (!collectionPromise) {
@@ -33,6 +37,23 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Root & Health routes
+app.get("/", (req, res) => res.json({
+  success: true,
+  message: "PDF Chat API is running",
+  endpoints: { health: "GET /api/health", upload: "POST /api/pdf/upload", chat: "POST /api/chat" },
+}));
+app.get(["/health", "/api/health"], (req, res) => res.json({ success: true, status: "ok", maxUploadMb }));
+
+// API routes
+app.use("/api", apiRoutes);
+
+// 404 Handler
+app.use((req, res) => res.status(404).json({ success: false, message: `Route not found: ${req.method} ${req.originalUrl}` }));
+
+// Centralized error handler
+app.use(errorHandler);
 
 async function startServer() {
   try {
