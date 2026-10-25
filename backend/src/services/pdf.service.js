@@ -1,17 +1,17 @@
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 
 let PDFParseClass = null;
-const getPDFParse = () => {
+const getPDFParse = async () => {
   if (!PDFParseClass) {
-    const pdfParseModule = require("pdf-parse");
-    PDFParseClass = pdfParseModule.PDFParse || pdfParseModule.default || pdfParseModule;
+    const pdfParseModule = await import("pdf-parse");
+    PDFParseClass = pdfParseModule.PDFParse || pdfParseModule.default?.PDFParse || pdfParseModule.default || pdfParseModule;
   }
   return PDFParseClass;
 };
 
 // Returns [{ pageNumber, text }] for every page that has text
 const extractPagesFromPDF = async (buffer) => {
-  const PDFParse = getPDFParse();
+  const PDFParse = await getPDFParse();
   const parser = new PDFParse({ data: new Uint8Array(buffer) });
 
   try {

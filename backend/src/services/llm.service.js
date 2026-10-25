@@ -1,6 +1,3 @@
-const { createGroq } = require("@ai-sdk/groq");
-const { generateText } = require("ai");
-
 const SYSTEM_PROMPT = `You are a friendly, intelligent PDF assistant. You get the user's question and, when available, document information (such as filename and total page count) and relevant passages from their uploaded PDF.
 
 How to reply:
@@ -25,6 +22,21 @@ const parseReply = (text, hasContext) => {
   };
 };
 
+// Dynamic ESM import cache for serverless environments
+let aiSdkPromise = null;
+const getAiSdk = async () => {
+  if (!aiSdkPromise) {
+    aiSdkPromise = Promise.all([
+      import("@ai-sdk/groq"),
+      import("ai"),
+    ]).then(([groqMod, aiMod]) => ({
+      createGroq: groqMod.createGroq,
+      generateText: aiMod.generateText,
+    }));
+  }
+  return aiSdkPromise;
+};
+
 // Returns { answer, usedDocument }.
 const generateAnswer = async (question, context = "") => {
   const groqApiKey = process.env.GROQ_API_KEY;
@@ -33,6 +45,8 @@ const generateAnswer = async (question, context = "") => {
   if (!groqApiKey) {
     throw new Error("GROQ_API_KEY is missing. Add it to .env.");
   }
+
+  const { createGroq, generateText } = await getAiSdk();
 
   const hasContext = Boolean(context.trim());
   const groq = createGroq({ apiKey: groqApiKey });
