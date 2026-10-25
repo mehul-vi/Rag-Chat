@@ -60,7 +60,8 @@ if (typeof globalThis.Path2D === "undefined") {
 // ==============================================================================
 // 2. Dependencies & Environment
 // ==============================================================================
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, ".env") });
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
