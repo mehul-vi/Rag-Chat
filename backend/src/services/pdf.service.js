@@ -1,8 +1,18 @@
-const { PDFParse } = require("pdf-parse");
+require("../utils/canvasPolyfill");
 const httpError = require("../utils/httpError");
+
+let PDFParseClass = null;
+const getPDFParse = () => {
+  if (!PDFParseClass) {
+    const pdfParseModule = require("pdf-parse");
+    PDFParseClass = pdfParseModule.PDFParse || pdfParseModule.default || pdfParseModule;
+  }
+  return PDFParseClass;
+};
 
 // Returns [{ pageNumber, text }] for every page that has text
 const extractPagesFromPDF = async (buffer) => {
+  const PDFParse = getPDFParse();
   const parser = new PDFParse({ data: new Uint8Array(buffer) });
 
   try {
