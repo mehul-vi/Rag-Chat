@@ -1,11 +1,11 @@
 import {
   UploadCloud,
   Loader2,
-  ArrowRight,
+  FileText,
   AlertCircle,
-  Layers,
-  CheckCircle2,
-  Sparkles,
+  ShieldCheck,
+  Search,
+  ScanEye,
 } from 'lucide-react';
 
 export default function EmptyHero({
@@ -15,53 +15,51 @@ export default function EmptyHero({
   uploadProgress,
   uploadError,
 }) {
-  const features = [
+  const capabilities = [
     {
-      icon: Layers,
-      title: 'Semantic RAG',
-      desc: 'Context-aware document chunking and vector retrieval',
+      icon: Search,
+      title: 'Contextual Retrieval',
+      desc: 'High-density vector embeddings with Qdrant similarity search',
     },
     {
-      icon: CheckCircle2,
-      title: 'Page Citations',
-      desc: 'Trace answers directly back to source page numbers',
+      icon: ShieldCheck,
+      title: 'Page-Level Attribution',
+      desc: 'Verify every statement against source page citations',
     },
     {
-      icon: Sparkles,
-      title: 'AI Analysis',
-      desc: 'Summarize, calculate, and extract tables and insights',
+      icon: ScanEye,
+      title: 'Multimodal OCR Fallback',
+      desc: 'Automated Gemini Flash Vision extraction for scanned pages',
     },
   ];
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center px-4 py-8 text-center sm:px-6 sm:py-12">
-      <div className="mb-5 flex items-center justify-center">
-        <img
-          src="/logo.svg"
-          alt="PDF Chat AI Logo"
-          className="h-16 w-16 rounded-2xl shadow-lg shadow-violet-500/20"
-        />
+      {/* Document Icon Badge */}
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-200/80 bg-white text-indigo-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-indigo-400">
+        <FileText size={28} />
       </div>
 
-      <p className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.2em] text-violet-600">
-        Smart Document Intelligence
+      <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-indigo-500/20 bg-indigo-50/50 px-3 py-1 text-[11px] font-semibold text-indigo-600 dark:border-indigo-500/30 dark:bg-indigo-950/40 dark:text-indigo-400">
+        <span>RAG Document Intelligence</span>
+      </div>
+
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl dark:text-zinc-100">
+        Query, Analyze, and Synthesize Any Document
+      </h1>
+
+      <p className="mt-2.5 max-w-lg text-xs leading-relaxed text-slate-500 sm:text-sm dark:text-zinc-400">
+        Upload research papers, legal contracts, reports, or documentation. Extract structured data
+        and receive answers backed by verifiable source citations.
       </p>
 
-      <h2 className="font-['Manrope'] text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl">
-        Chat with any PDF Document.
-      </h2>
-
-      <p className="mt-3 max-w-lg text-sm leading-relaxed text-zinc-500">
-        Upload research papers, contracts, study notes, or reports. Ask questions and get instant,
-        accurate answers with page-level citations.
-      </p>
-
-      <div className="mt-8 w-full max-w-lg rounded-3xl border border-zinc-200/90 bg-white p-2.5 shadow-xl shadow-zinc-950/5">
+      {/* Main Upload Dropzone */}
+      <div className="mt-8 w-full max-w-lg rounded-3xl border border-slate-200/90 bg-white p-3 shadow-md shadow-slate-950/5 dark:border-zinc-800/80 dark:bg-zinc-900/90 dark:shadow-black/40">
         <label
-          className={`block rounded-2xl border-2 border-dashed p-8 transition-all ${
+          className={`group flex min-h-[160px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 transition-all ${
             isUploading
-              ? 'cursor-wait border-violet-200 bg-violet-50/40'
-              : 'cursor-pointer border-zinc-200 bg-zinc-50/60 hover:border-violet-400 hover:bg-violet-50/30'
+              ? 'cursor-wait border-indigo-400 bg-indigo-50/30 dark:border-indigo-500/50 dark:bg-indigo-950/20'
+              : 'border-slate-200 bg-slate-50/50 hover:border-indigo-500/60 hover:bg-indigo-50/20 dark:border-zinc-800 dark:bg-zinc-950/50 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/30'
           }`}
         >
           <input
@@ -73,54 +71,65 @@ export default function EmptyHero({
           />
 
           {isUploading ? (
-            <div className="flex flex-col items-center">
-              <Loader2 size={36} className="animate-spin text-violet-600" />
-              <p className="mt-4 text-sm font-bold text-zinc-800">Processing your PDF...</p>
-              <p className="mt-1 text-xs text-zinc-400">
-                {uploadStage || 'Generating vector embeddings'}
-              </p>
-              <div className="mt-5 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-violet-100">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 size={32} className="animate-spin text-indigo-600 dark:text-indigo-400" />
+              <div>
+                <p className="text-xs font-bold text-slate-900 dark:text-zinc-100">
+                  {uploadStage || 'Processing document...'}
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-500 dark:text-zinc-400">
+                  Chunking text & computing 768-dim embeddings
+                </p>
+              </div>
+              <div className="h-1.5 w-48 overflow-hidden rounded-full bg-slate-200 dark:bg-zinc-800">
                 <div
-                  className="h-full rounded-full bg-violet-600 transition-all duration-500"
-                  style={{ width: `${uploadProgress || 50}%` }}
+                  className="h-full rounded-full bg-indigo-600 dark:bg-indigo-500 transition-all duration-300"
+                  style={{ width: `${uploadProgress || 35}%` }}
                 />
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-violet-600 shadow-md shadow-zinc-200 transition-transform duration-200 group-hover:scale-105">
-                <UploadCloud size={28} />
+            <div className="flex flex-col items-center gap-2.5">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-indigo-600 shadow-2xs transition group-hover:scale-105 group-hover:border-indigo-300 dark:border-zinc-800 dark:bg-zinc-900 dark:text-indigo-400">
+                <UploadCloud size={22} />
               </div>
-              <p className="mt-4 text-sm font-bold text-zinc-800">Drop your PDF file here</p>
-              <p className="mt-1 text-xs text-zinc-400">or click to browse from your device</p>
-              <span className="mt-5 inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-xs font-semibold text-white shadow-md transition hover:bg-violet-600 hover:shadow-violet-500/25">
-                Select PDF <ArrowRight size={14} />
-              </span>
+              <div>
+                <p className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 dark:text-zinc-100 dark:group-hover:text-indigo-400">
+                  Click to browse or drop PDF here
+                </p>
+                <p className="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">
+                  PDF up to 15MB • Text & Scanned OCR Supported
+                </p>
+              </div>
             </div>
           )}
         </label>
 
         {uploadError && (
-          <div className="flex items-center gap-2 px-4 py-3 text-xs font-semibold text-red-600">
-            <AlertCircle size={15} />
-            {uploadError}
+          <div className="mt-2.5 flex items-center justify-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-600 dark:bg-red-950/40 dark:text-red-400">
+            <AlertCircle size={14} className="shrink-0" />
+            <span className="truncate">{uploadError}</span>
           </div>
         )}
       </div>
 
-      <div className="mt-6 grid w-full max-w-lg grid-cols-1 gap-2.5 sm:grid-cols-3">
-        {features.map(({ icon: Icon, title, desc }) => (
-          <div
-            key={title}
-            className="rounded-2xl border border-zinc-200/80 bg-white p-4 text-left shadow-xs transition hover:border-violet-200"
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
-              <Icon size={16} />
+      {/* Feature Micro-Grid */}
+      <div className="mt-8 grid w-full max-w-xl grid-cols-1 gap-3 text-left sm:grid-cols-3">
+        {capabilities.map((item, idx) => {
+          const Icon = item.icon;
+          return (
+            <div
+              key={idx}
+              className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs transition hover:border-slate-300 dark:border-zinc-800/80 dark:bg-zinc-900/60 dark:hover:border-zinc-700"
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-zinc-300">
+                <Icon size={14} />
+              </div>
+              <p className="mt-2 text-xs font-semibold text-slate-900 dark:text-zinc-200">{item.title}</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400 dark:text-zinc-500">{item.desc}</p>
             </div>
-            <p className="mt-3 text-xs font-bold text-zinc-800">{title}</p>
-            <p className="mt-1 text-[10px] leading-relaxed text-zinc-500">{desc}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

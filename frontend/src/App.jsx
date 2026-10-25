@@ -28,16 +28,16 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 const WELCOME_MESSAGE = {
   role: 'ai',
-  content: 'Hello! Upload a PDF document to start chatting with it, or select an existing chat from your history.',
+  content: 'Welcome to Document Intelligence. Upload any PDF file to analyze, extract insights, and ask questions with verifiable citations.',
 };
 
 const DEFAULT_AUTH_FORM = { email: '', password: '' };
 
 const QUICK_PROMPTS = [
-  'Summarize this entire document in 5 key takeaways.',
-  'What are the most important conclusions or findings?',
-  'List any action items, dates, or next steps mentioned.',
-  'What are the main topics and sections covered?',
+  'Summarize the core takeaways and executive summary.',
+  'What are the key conclusions or findings in this document?',
+  'List any action items, dates, and next steps mentioned.',
+  'Extract any structured data, tables, or metric comparisons.',
 ];
 
 const validatePdf = (file) => {
@@ -71,6 +71,26 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('rag_chat_theme');
+    if (saved) return saved;
+    return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('rag_chat_theme', theme);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -452,12 +472,14 @@ export default function App() {
           window.location.hash = `#/${next}`;
           setAuthError('');
         }}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
       />
     );
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#f8f9fa] p-2 sm:p-3 font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="flex h-screen w-full overflow-hidden bg-slate-100/90 p-2 sm:p-3 transition-colors dark:bg-[#09090b]">
       {/* Modular Sidebar */}
       <Sidebar
         user={user}
@@ -477,10 +499,12 @@ export default function App() {
         uploadStage={uploadStage}
         uploadError={uploadError}
         onFileSelect={handleFileChange}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
       />
 
       {/* Main Chat Area */}
-      <main className="ml-0 flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-sm lg:ml-3">
+      <main className="ml-0 flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xs transition-colors lg:ml-3 dark:border-zinc-800/80 dark:bg-[#111114]">
         <ChatHeader
           fileName={fileName}
           documentId={documentId}
@@ -488,6 +512,8 @@ export default function App() {
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           onUploadClick={handleFileChange}
           onNewChat={() => startFreshChat(true)}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
         />
 
         <UploadBanner
@@ -535,6 +561,7 @@ export default function App() {
           isTyping={isTyping}
           canChat={canChat}
           documentId={documentId}
+          fileName={fileName}
         />
       </main>
     </div>
