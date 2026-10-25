@@ -14,6 +14,8 @@ const app = express();
 
 app.set("trust proxy", 1); // needed behind Render/Vercel proxy for rate limiting
 
+app.get("/", (req, res) => res.send("Hello World"));
+
 let dbPromise = null;
 app.use((req, res, next) => {
   if (!dbPromise) {
@@ -57,7 +59,6 @@ app.use("/api/pdf", limiter(30), pdfRoutes);
 app.use("/api/chat", limiter(200), chatRoutes);
 app.use("/api/history", limiter(400), historyRoutes);
 
-app.get("/", (req, res) => res.json({ success: true, status: "ok" }));
 app.get("/api", (req, res) => res.json({ message: "PDF RAG Chat API is running" }));
 app.get(["/health", "/api/health"], (req, res) => res.json({ success: true, status: "ok" }));
 
