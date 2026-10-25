@@ -1,5 +1,5 @@
 const multer = require("multer");
-const httpError = require("../utils/httpError");
+const httpError = (status, message) => Object.assign(new Error(message), { status });
 
 // Memory storage: nothing is written to disk
 const upload = multer({

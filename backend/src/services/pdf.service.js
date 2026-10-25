@@ -1,5 +1,4 @@
-require("../utils/canvasPolyfill");
-const httpError = require("../utils/httpError");
+const httpError = (status, message) => Object.assign(new Error(message), { status });
 
 let PDFParseClass = null;
 const getPDFParse = () => {

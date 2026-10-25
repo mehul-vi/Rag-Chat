@@ -77,7 +77,7 @@ const {
   updateSession,
   deleteSession,
 } = require("./src/controllers/history.controller");
-const httpError = require("./src/utils/httpError");
+const httpError = (status, message) => Object.assign(new Error(message), { status });
 
 // ==============================================================================
 // 3. App Setup & Core Middlewares
