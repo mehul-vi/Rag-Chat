@@ -5,6 +5,9 @@ import {
   auth,
   onAuthStateChanged,
   signOutUser,
+  loginWithEmail,
+  createAccountWithEmail,
+  signInWithGoogle,
   createChatSession,
   updateChatSession,
   deleteChatSession,
@@ -16,6 +19,7 @@ import ChatInput from './components/ChatInput';
 import MessageList from './components/MessageList';
 import DocViewer from './components/DocViewer';
 import LoadingScreen from './components/LoadingScreen';
+import AuthScreen from './components/AuthScreen';
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
@@ -29,11 +33,18 @@ export default function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [chatError, setChatError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
+  const [authData, setAuthData] = useState({ email: '', password: '' });
+  const [authError, setAuthError] = useState('');
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mobileView, setMobileView] = useState('chat');
   const [isDragging, setIsDragging] = useState(false);
   const [user, setUser] = useState(() => {
     try {
+      if (localStorage.getItem('rag_chat_logged_out') === 'true') {
+        return null;
+      }
       if (auth?.currentUser) {
         return {
           uid: auth.currentUser.uid,
@@ -79,12 +90,110 @@ export default function App() {
           photoURL: nextUser.photoURL,
         };
         setUser(userData);
-        try { localStorage.setItem('rag_chat_user', JSON.stringify(userData)); } catch { /* Optional. */ }
+        try {
+          localStorage.setItem('rag_chat_user', JSON.stringify(userData));
+          localStorage.removeItem('rag_chat_logged_out');
+        } catch { /* Optional. */ }
+      } else {
+        if (localStorage.getItem('rag_chat_logged_out') === 'true') {
+          setUser(null);
+        }
       }
       setAuthLoading(false);
     });
     return unsubscribe;
   }, []);
+
+  const handleAuthSubmit = async (event) => {
+    event?.preventDefault();
+    setAuthError('');
+    setIsSubmittingAuth(true);
+
+    try {
+      if (authMode === 'login') {
+        const userCredential = await loginWithEmail(authData.email, authData.password);
+        const loggedUser = {
+          uid: userCredential.user.uid,
+          email: userCredential.user.email,
+          displayName: userCredential.user.displayName || userCredential.user.email?.split('@')[0] || 'User',
+          photoURL: userCredential.user.photoURL,
+        };
+        setUser(loggedUser);
+        try {
+          localStorage.setItem('rag_chat_user', JSON.stringify(loggedUser));
+          localStorage.removeItem('rag_chat_logged_out');
+        } catch {}
+      } else {
+        const userCredential = await createAccountWithEmail(authData.email, authData.password);
+        const loggedUser = {
+          uid: userCredential.user.uid,
+          email: userCredential.user.email,
+          displayName: userCredential.user.displayName || userCredential.user.email?.split('@')[0] || 'User',
+          photoURL: userCredential.user.photoURL,
+        };
+        setUser(loggedUser);
+        try {
+          localStorage.setItem('rag_chat_user', JSON.stringify(loggedUser));
+          localStorage.removeItem('rag_chat_logged_out');
+        } catch {}
+      }
+    } catch (err) {
+      setAuthError(err.message || 'Authentication failed. Please check your credentials.');
+    } finally {
+      setIsSubmittingAuth(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setAuthError('');
+    setIsSubmittingAuth(true);
+    try {
+      const userCredential = await signInWithGoogle();
+      const loggedUser = {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        displayName: userCredential.user.displayName || userCredential.user.email?.split('@')[0] || 'User',
+        photoURL: userCredential.user.photoURL,
+      };
+      setUser(loggedUser);
+      try {
+        localStorage.setItem('rag_chat_user', JSON.stringify(loggedUser));
+        localStorage.removeItem('rag_chat_logged_out');
+      } catch {}
+    } catch (err) {
+      setAuthError(err.message || 'Google sign-in failed.');
+    } finally {
+      setIsSubmittingAuth(false);
+    }
+  };
+
+  const handleGuestLogin = () => {
+    const guestUser = {
+      uid: 'guest_user',
+      email: 'user@docanalyzer.com',
+      displayName: 'Guest User',
+    };
+    setUser(guestUser);
+    try {
+      localStorage.setItem('rag_chat_user', JSON.stringify(guestUser));
+      localStorage.removeItem('rag_chat_logged_out');
+    } catch {}
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOutUser();
+    } catch (err) {
+      console.warn('Logout notice:', err);
+    }
+    try {
+      localStorage.removeItem('rag_chat_user');
+      localStorage.setItem('rag_chat_logged_out', 'true');
+    } catch {}
+    setUser(null);
+    setDocuments([]);
+    setActiveDocId(null);
+  };
 
   useEffect(() => {
     const uid = user?.uid || user?.email || 'guest_user';
@@ -332,6 +441,27 @@ export default function App() {
 
   if (authLoading) return <LoadingScreen />;
 
+  if (!user) {
+    return (
+      <AuthScreen
+        mode={authMode}
+        form={authData}
+        setForm={setAuthData}
+        authError={authError}
+        isSubmitting={isSubmittingAuth}
+        onSubmit={handleAuthSubmit}
+        onGoogleSignIn={handleGoogleLogin}
+        onGuestLogin={handleGuestLogin}
+        toggleMode={() => {
+          setAuthMode((current) => (current === 'login' ? 'signup' : 'login'));
+          setAuthError('');
+        }}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+      />
+    );
+  }
+
   return (
     <div
       className="h-dvh min-h-[540px] w-full overflow-hidden bg-[var(--workspace)] text-[var(--text)]"
@@ -353,7 +483,7 @@ export default function App() {
           onToggleFavourite={handleToggleFavourite}
           theme={theme}
           onToggleTheme={handleToggleTheme}
-          onLogout={signOutUser}
+          onLogout={handleLogout}
         />
 
         <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden border-[var(--border)] bg-[var(--surface)] lg:rounded-r-xl lg:border lg:border-l-0">

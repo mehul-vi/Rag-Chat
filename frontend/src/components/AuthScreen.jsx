@@ -18,6 +18,7 @@ export default function AuthScreen({
   isSubmitting,
   onSubmit,
   onGoogleSignIn,
+  onGuestLogin,
   toggleMode,
   theme,
   onToggleTheme,
@@ -235,6 +236,18 @@ export default function AuthScreen({
 
           Continue with Google
         </button>
+
+        {/* Continue as Guest */}
+        {onGuestLogin && (
+          <button
+            type="button"
+            onClick={onGuestLogin}
+            disabled={isSubmitting}
+            className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-stone-300 bg-transparent text-xs font-semibold text-stone-600 transition-all duration-200 hover:border-stone-400 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a54840]/40 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-zinc-600 dark:hover:bg-zinc-800/60"
+          >
+            Continue as Guest / Preview
+          </button>
+        )}
 
         {/* Switch auth mode */}
         <p className="mt-7 text-center text-xs text-stone-500 dark:text-zinc-400">

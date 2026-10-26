@@ -128,6 +128,15 @@ export default function Sidebar({
                     {item}{workspace === item && <Check size={13} className="text-[var(--accent)]" />}
                   </button>
                 ))}
+                {onLogout && (
+                  <button
+                    type="button"
+                    onClick={() => { setWorkspaceMenuOpen(false); onLogout(); }}
+                    className="mt-1 flex min-h-[38px] w-full items-center gap-2 border-t border-[var(--border)] px-2.5 pt-1 text-left text-xs text-[var(--danger)] hover:bg-[var(--surface-subtle)]"
+                  >
+                    <LogOut size={13} />Log out
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -213,7 +222,7 @@ function SettingsModal({ user, onUpdateUser, theme, onToggleTheme, onClose, onLo
         <input id="account-email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]" />
         <button type="submit" className="primary-button mt-3 w-full">{saved ? <><Check size={16} />Saved</> : 'Save changes'}</button>
       </form>
-      {onLogout && <button type="button" onClick={onLogout} className="mt-5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg text-sm text-[var(--danger)] transition-colors hover:bg-[var(--danger-soft)]"><LogOut size={15} />Log out</button>}
+      {onLogout && <button type="button" onClick={() => { onClose(); onLogout(); }} className="mt-5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg text-sm text-[var(--danger)] transition-colors hover:bg-[var(--danger-soft)]"><LogOut size={15} />Log out</button>}
     </Modal>
   );
 }
