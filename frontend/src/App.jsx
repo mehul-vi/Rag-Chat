@@ -51,6 +51,8 @@ export default function App() {
       if (localStorage.getItem('rag_chat_logged_out') === 'true') {
         return null;
       }
+      const saved = localStorage.getItem('rag_chat_user');
+      if (saved) return JSON.parse(saved);
       if (auth?.currentUser) {
         return {
           uid: auth.currentUser.uid,
@@ -59,10 +61,8 @@ export default function App() {
           photoURL: auth.currentUser.photoURL,
         };
       }
-      const saved = localStorage.getItem('rag_chat_user');
-      if (saved) return JSON.parse(saved);
-    } catch { /* Use the local preview identity. */ }
-    return { uid: 'guest_user', email: 'user@docanalyzer.com', displayName: 'User' };
+    } catch { /* Use null when storage unreadable. */ }
+    return null;
   });
   const [theme, setTheme] = useState(() => {
     try {
@@ -94,9 +94,16 @@ export default function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (!auth) return undefined;
+    if (!auth) {
+      setAuthLoading(false);
+      return undefined;
+    }
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       if (nextUser) {
+        if (localStorage.getItem('rag_chat_logged_out') === 'true') {
+          setAuthLoading(false);
+          return;
+        }
         const userData = {
           uid: nextUser.uid,
           email: nextUser.email,
@@ -106,10 +113,9 @@ export default function App() {
         setUser(userData);
         try {
           localStorage.setItem('rag_chat_user', JSON.stringify(userData));
-          localStorage.removeItem('rag_chat_logged_out');
         } catch { /* Optional. */ }
       } else {
-        if (localStorage.getItem('rag_chat_logged_out') === 'true') {
+        if (localStorage.getItem('rag_chat_logged_out') === 'true' || !localStorage.getItem('rag_chat_user')) {
           setUser(null);
         }
       }
@@ -194,12 +200,7 @@ export default function App() {
     } catch {}
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOutUser();
-    } catch (err) {
-      console.warn('Logout notice:', err);
-    }
+  const handleLogout = useCallback(async () => {
     try {
       localStorage.removeItem('rag_chat_user');
       localStorage.setItem('rag_chat_logged_out', 'true');
@@ -207,10 +208,22 @@ export default function App() {
     setUser(null);
     setDocuments([]);
     setActiveDocId(null);
-  };
+
+    try {
+      if (signOutUser) {
+        await Promise.race([
+          signOutUser(),
+          new Promise((resolve) => setTimeout(resolve, 800)),
+        ]);
+      }
+    } catch (err) {
+      console.warn('Logout notice:', err);
+    }
+  }, []);
 
   useEffect(() => {
-    const uid = user?.uid || user?.email || 'guest_user';
+    if (!user) return undefined;
+    const uid = user.uid || user.email || 'guest_user';
     let isCancelled = false;
 
     const fetchHistory = async () => {
@@ -523,6 +536,7 @@ export default function App() {
             onOpenMobileMenu={handleToggleSidebar}
             mobileView={mobileView}
             onChangeMobileView={setMobileView}
+            onLogout={handleLogout}
           />
 
           {!activeDoc ? (

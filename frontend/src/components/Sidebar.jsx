@@ -153,10 +153,30 @@ export default function Sidebar({
             )}
           </div>
 
-          <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-1 border-t border-[var(--border)] pt-2">
-            <button type="button" onClick={() => setModal('settings')} className="flex min-h-[40px] items-center justify-center gap-2 rounded-md text-xs text-[var(--text-muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text)]"><Settings size={14} />Settings</button>
-            <button type="button" onClick={() => setModal('help')} className="flex min-h-[40px] items-center justify-center gap-2 rounded-md text-xs text-[var(--text-muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text)]"><HelpCircle size={14} />Help</button>
-            <button type="button" onClick={onToggleTheme} className="icon-button !h-10 !w-10" aria-label={theme === 'dark' ? 'Use light theme' : 'Use dark theme'}>{theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}</button>
+          <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-[var(--border)] pt-2">
+            <button type="button" onClick={() => setModal('settings')} className="flex min-h-[36px] items-center justify-center gap-1.5 rounded-md text-xs text-[var(--text-muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text)]"><Settings size={14} />Settings</button>
+            <button type="button" onClick={() => setModal('help')} className="flex min-h-[36px] items-center justify-center gap-1.5 rounded-md text-xs text-[var(--text-muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text)]"><HelpCircle size={14} />Help</button>
+          </div>
+          <div className="mt-1.5 flex items-center justify-between gap-1.5 pt-0.5">
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--danger)]/25 bg-[var(--danger-soft)] px-3 text-xs font-semibold text-[var(--danger)] transition-all hover:border-[var(--danger)]/50 hover:bg-[var(--danger-soft)]/90"
+                title="Log out from account"
+              >
+                <LogOut size={14} />Log out
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              className="icon-button !h-9 !w-9 shrink-0 border border-[var(--border)] bg-[var(--surface-raised)]"
+              aria-label={theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
+              title={theme === 'dark' ? 'Use light theme' : 'Use dark theme'}
+            >
+              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
           </div>
         </div>
       </aside>

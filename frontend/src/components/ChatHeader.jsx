@@ -1,8 +1,9 @@
-import { Plus, X, Sun, Moon, Menu, MessageSquare, FileText, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Plus, X, Sun, Moon, Menu, MessageSquare, FileText, ChevronRight, PanelLeftClose, PanelLeftOpen, LogOut } from 'lucide-react';
 
 export default function ChatHeader({
   documents = [], activeDocId, activeDoc, onSelectDoc, onCloseDocTab,
   onNewDocTab, theme, onToggleTheme, onOpenMobileMenu, isSidebarOpen, onToggleSidebar, mobileView, onChangeMobileView,
+  onLogout,
 }) {
   return (
     <header className="relative z-20 shrink-0 border-b border-[var(--border)] bg-[var(--surface)]">
@@ -27,6 +28,17 @@ export default function ChatHeader({
           <button type="button" onClick={onToggleTheme} className="icon-button border-[var(--border)] bg-[var(--surface-raised)]" aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
+          {onLogout && (
+            <button
+              type="button"
+              onClick={onLogout}
+              className="icon-button border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-muted)] transition-colors hover:!border-[var(--danger-soft)] hover:!bg-[var(--danger-soft)] hover:!text-[var(--danger)]"
+              aria-label="Log out"
+              title="Log out"
+            >
+              <LogOut size={16} />
+            </button>
+          )}
         </div>
       </div>
 

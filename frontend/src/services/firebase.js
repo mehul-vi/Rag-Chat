@@ -24,7 +24,10 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-export const isFirebaseConfigured = Object.values(firebaseConfig).every(Boolean);
+export const isFirebaseConfigured =
+  Object.values(firebaseConfig).every(Boolean) &&
+  !String(firebaseConfig.apiKey).includes('your_') &&
+  !String(firebaseConfig.projectId).includes('your_');
 
 const firebaseConfigHint =
   'Firebase config is missing or invalid. Make sure the values in frontend/.env match the same Firebase project and that Authentication is enabled in Firebase Console.';
@@ -112,7 +115,11 @@ export const signInWithGoogle = async () => {
 
 export const signOutUser = async () => {
   if (!auth) return;
-  return signOut(auth);
+  try {
+    await signOut(auth);
+  } catch (err) {
+    console.warn('Firebase signOut error:', err);
+  }
 };
 
 export const sanitizeMessages = (messages = []) => {
