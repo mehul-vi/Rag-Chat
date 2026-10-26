@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  FileText, Star, ChevronDown, Settings, HelpCircle, X, Plus, Trash2,
-  Files, LogOut, Sun, Moon, Check, Upload, Sparkles,
+  FileText, Star, ChevronDown, Settings, HelpCircle, Plus, Trash2,
+  Files, LogOut, Sun, Moon, Check, Upload, PanelLeftClose,
 } from 'lucide-react';
 
 export default function Sidebar({
   user, onUpdateUser, documents = [], activeDocId, onSelectDoc,
-  onCloseMobileMenu, isMobileMenuOpen, onStartNewUpload, onDeleteDoc,
+  isOpen, onToggleOpen, onClose, onCloseMobileMenu, isMobileMenuOpen, onStartNewUpload, onDeleteDoc,
   onToggleFavourite, theme, onToggleTheme, onLogout,
 }) {
   const [filter, setFilter] = useState('recent');
@@ -18,6 +18,9 @@ export default function Sidebar({
   const visibleDocuments = filter === 'starred' ? documents.filter((doc) => doc.isFavourite) : documents;
   const initials = (user?.displayName || user?.email || 'U').slice(0, 1).toUpperCase();
 
+  const sidebarOpen = typeof isOpen === 'boolean' ? isOpen : Boolean(isMobileMenuOpen);
+  const handleClose = onClose || onCloseMobileMenu;
+
   useEffect(() => {
     const close = (event) => {
       if (workspaceRef.current && !workspaceRef.current.contains(event.target)) setWorkspaceMenuOpen(false);
@@ -28,14 +31,23 @@ export default function Sidebar({
 
   return (
     <>
-      {isMobileMenuOpen && (
-        <button type="button" aria-label="Close navigation" onClick={onCloseMobileMenu} className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px] lg:hidden" />
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          onClick={handleClose}
+          className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px] lg:hidden"
+        />
       )}
 
       <aside
         id="app-sidebar"
         aria-label="Workspace navigation"
-        className={`fixed inset-y-0 left-0 z-50 flex w-[290px] max-w-[calc(100vw-32px)] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-transform duration-200 ease-out lg:static lg:z-auto lg:w-[272px] lg:max-w-none lg:translate-x-0 lg:rounded-l-xl lg:border lg:border-r-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed inset-y-0 left-0 z-50 flex shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-all duration-200 ease-in-out lg:static lg:z-auto lg:rounded-l-xl lg:border lg:border-r-0 ${
+          sidebarOpen
+            ? 'w-[290px] max-w-[calc(100vw-32px)] translate-x-0 lg:w-[272px] lg:max-w-none lg:opacity-100'
+            : '-translate-x-full pointer-events-none lg:w-0 lg:max-w-0 lg:border-0 lg:p-0 lg:overflow-hidden lg:opacity-0'
+        }`}
       >
         <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-[var(--border)] px-5">
           <div className="flex items-center gap-2.5">
@@ -45,7 +57,15 @@ export default function Sidebar({
               <p className="font-ui-mono text-[9px] uppercase tracking-[0.1em] text-[var(--text-muted)]">Document workspace</p>
             </div>
           </div>
-          <button type="button" onClick={onCloseMobileMenu} className="icon-button lg:hidden" aria-label="Close sidebar"><X size={18} /></button>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="icon-button"
+            aria-label="Close sidebar"
+            title="Close sidebar"
+          >
+            <PanelLeftClose size={18} />
+          </button>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col px-3 py-4">
@@ -103,14 +123,6 @@ export default function Sidebar({
         </div>
 
         <div className="shrink-0 border-t border-[var(--border)] p-3">
-          <div className="mx-1 mb-3 px-2 py-1">
-            <div className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2 text-xs font-semibold"><Sparkles size={14} className="text-[var(--accent)]" /> Premium trial</span>
-              <span className="font-ui-mono text-[10px] text-[var(--accent-ink)]">6 DAYS</span>
-            </div>
-            <button type="button" onClick={() => setModal('trial')} className="mt-1 text-[11px] text-[var(--text-muted)] underline-offset-4 hover:text-[var(--accent-ink)] hover:underline">View plan details</button>
-          </div>
-
           <div className="relative" ref={workspaceRef}>
             <button type="button" onClick={() => setWorkspaceMenuOpen((open) => !open)} aria-expanded={workspaceMenuOpen} className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[var(--surface-subtle)]">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent-ink)]">{initials}</span>
@@ -148,19 +160,6 @@ export default function Sidebar({
           </div>
         </div>
       </aside>
-
-      {modal === 'trial' && (
-        <Modal title="Premium trial" onClose={() => setModal(null)}>
-          <div className="border-y border-[var(--border)] py-4">
-            <div className="flex justify-between text-sm"><span className="text-[var(--text-muted)]">Current plan</span><strong>Premium trial</strong></div>
-            <div className="mt-3 flex justify-between text-sm"><span className="text-[var(--text-muted)]">Time remaining</span><strong className="text-[var(--accent-ink)]">6 days</strong></div>
-          </div>
-          <ul className="mt-5 space-y-3 text-sm text-[var(--text-secondary)]">
-            {['Unlimited PDF parsing and indexing', 'Semantic document search', 'Answers with page-level citations', 'Multi-document workspace'].map((item) => <li key={item} className="flex gap-2.5"><Check size={16} className="mt-0.5 shrink-0 text-[var(--accent)]" />{item}</li>)}
-          </ul>
-          <button type="button" onClick={() => setModal(null)} className="primary-button mt-6 w-full">Done</button>
-        </Modal>
-      )}
 
       {modal === 'settings' && (
         <SettingsModal user={user} onUpdateUser={onUpdateUser} theme={theme} onToggleTheme={onToggleTheme} onClose={() => setModal(null)} onLogout={onLogout} />

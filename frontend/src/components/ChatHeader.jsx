@@ -1,13 +1,21 @@
-import { Plus, X, Sun, Moon, Menu, MessageSquare, FileText, ChevronRight } from 'lucide-react';
+import { Plus, X, Sun, Moon, Menu, MessageSquare, FileText, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 export default function ChatHeader({
   documents = [], activeDocId, activeDoc, onSelectDoc, onCloseDocTab,
-  onNewDocTab, theme, onToggleTheme, onOpenMobileMenu, mobileView, onChangeMobileView,
+  onNewDocTab, theme, onToggleTheme, onOpenMobileMenu, isSidebarOpen, onToggleSidebar, mobileView, onChangeMobileView,
 }) {
   return (
     <header className="relative z-20 shrink-0 border-b border-[var(--border)] bg-[var(--surface)]">
       <div className="flex h-[64px] items-center gap-3 px-3 sm:px-5 lg:h-[72px] lg:px-6">
-        <button type="button" onClick={onOpenMobileMenu} aria-label="Open navigation" className="icon-button lg:hidden"><Menu size={19} /></button>
+        <button
+          type="button"
+          onClick={onToggleSidebar || onOpenMobileMenu}
+          aria-label={isSidebarOpen ? 'Collapse sidebar' : 'Open sidebar'}
+          title={isSidebarOpen ? 'Collapse sidebar' : 'Open sidebar'}
+          className="icon-button border-[var(--border)] bg-[var(--surface-raised)]"
+        >
+          {isSidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+        </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
             <span>Workspace</span><ChevronRight size={11} /><span>{activeDoc ? 'Analysis' : 'New analysis'}</span>

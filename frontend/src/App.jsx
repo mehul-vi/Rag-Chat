@@ -37,7 +37,13 @@ export default function App() {
   const [authData, setAuthData] = useState({ email: '', password: '' });
   const [authError, setAuthError] = useState('');
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem('rag_chat_sidebar_open');
+      if (saved !== null) return saved === 'true';
+    } catch {}
+    return true;
+  });
   const [mobileView, setMobileView] = useState('chat');
   const [isDragging, setIsDragging] = useState(false);
   const [user, setUser] = useState(() => {
@@ -72,6 +78,14 @@ export default function App() {
 
   const handleToggleTheme = useCallback(() => {
     setTheme((current) => (current === 'light' ? 'dark' : 'light'));
+  }, []);
+
+  const handleToggleSidebar = useCallback(() => {
+    setIsSidebarOpen((current) => {
+      const next = !current;
+      try { localStorage.setItem('rag_chat_sidebar_open', String(next)); } catch {}
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -259,7 +273,9 @@ export default function App() {
   const handleSelectDoc = useCallback((doc) => {
     setActiveDocId(doc.id);
     setChatError('');
-    setIsMobileMenuOpen(false);
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+    }
     setMobileView('chat');
   }, []);
 
@@ -476,8 +492,14 @@ export default function App() {
           documents={documents}
           activeDocId={activeDocId}
           onSelectDoc={handleSelectDoc}
-          onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
-          isMobileMenuOpen={isMobileMenuOpen}
+          isOpen={isSidebarOpen}
+          onToggleOpen={handleToggleSidebar}
+          onClose={() => {
+            setIsSidebarOpen(false);
+            try { localStorage.setItem('rag_chat_sidebar_open', 'false'); } catch {}
+          }}
+          onCloseMobileMenu={() => setIsSidebarOpen(false)}
+          isMobileMenuOpen={isSidebarOpen}
           onStartNewUpload={handleTriggerUpload}
           onDeleteDoc={handleDeleteDoc}
           onToggleFavourite={handleToggleFavourite}
@@ -486,7 +508,7 @@ export default function App() {
           onLogout={handleLogout}
         />
 
-        <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden border-[var(--border)] bg-[var(--surface)] lg:rounded-r-xl lg:border lg:border-l-0">
+        <main className={`relative flex min-w-0 flex-1 flex-col overflow-hidden border-[var(--border)] bg-[var(--surface)] transition-all duration-200 lg:rounded-xl lg:border ${isSidebarOpen ? 'lg:rounded-l-none lg:border-l-0' : ''}`}>
           <ChatHeader
             documents={documents}
             activeDocId={activeDocId}
@@ -496,7 +518,9 @@ export default function App() {
             onNewDocTab={handleTriggerUpload}
             theme={theme}
             onToggleTheme={handleToggleTheme}
-            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+            isSidebarOpen={isSidebarOpen}
+            onToggleSidebar={handleToggleSidebar}
+            onOpenMobileMenu={handleToggleSidebar}
             mobileView={mobileView}
             onChangeMobileView={setMobileView}
           />
