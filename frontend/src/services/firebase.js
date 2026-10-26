@@ -135,7 +135,7 @@ export const sanitizeMessages = (messages = []) => {
   });
 };
 
-export const createChatSession = async ({ uid, title, fileName, documentId, messages = [] }) => {
+export const createChatSession = async ({ uid, title, fileName, documentId, totalPages = 0, currentPage = 1, isFavourite = false, messages = [] }) => {
   if (!uid) return null;
   const localId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -146,6 +146,9 @@ export const createChatSession = async ({ uid, title, fileName, documentId, mess
     title: title || fileName || 'New Chat',
     fileName: fileName || '',
     documentId: documentId || null,
+    totalPages: Number(totalPages) || 0,
+    currentPage: Number(currentPage) || 1,
+    isFavourite: Boolean(isFavourite),
     messages: cleanMessages,
   };
 
@@ -212,6 +215,9 @@ export const updateChatSession = async (sessionId, nextSession, uid) => {
       if (nextSession.title !== undefined) updatePayload.title = nextSession.title;
       if (nextSession.fileName !== undefined) updatePayload.fileName = nextSession.fileName;
       if (nextSession.documentId !== undefined) updatePayload.documentId = nextSession.documentId;
+      if (nextSession.totalPages !== undefined) updatePayload.totalPages = nextSession.totalPages;
+      if (nextSession.currentPage !== undefined) updatePayload.currentPage = nextSession.currentPage;
+      if (nextSession.isFavourite !== undefined) updatePayload.isFavourite = nextSession.isFavourite;
       if (cleanMessages) updatePayload.messages = cleanMessages;
 
       await updateMongoSession(sessionId, updatePayload);
@@ -249,6 +255,9 @@ export const loadChatHistory = async (uid) => {
       title: document.title,
       fileName: document.fileName,
       documentId: document.documentId,
+      totalPages: document.totalPages || 0,
+      currentPage: document.currentPage || 1,
+      isFavourite: Boolean(document.isFavourite),
       messages: sanitizeMessages(document.messages),
       createdAt: document.createdAt ? new Date(document.createdAt) : { seconds: Math.floor(Date.now() / 1000) },
       updatedAt: document.updatedAt ? new Date(document.updatedAt) : { seconds: Math.floor(Date.now() / 1000) },

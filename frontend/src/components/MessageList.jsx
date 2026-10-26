@@ -1,207 +1,135 @@
 import { useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { User, Sparkles, Copy, Check, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { Copy, Check, FileText, ChevronDown, ChevronUp, ArrowUpRight, Sparkles } from 'lucide-react';
+import { getUserInitial, isInteractiveQuestion, cleanQuestionText, extractTextFromReactNode } from '../utils/chatUtils';
 
-const markdownComponents = {
-  table: (props) => (
-    <div className="my-3 overflow-x-auto rounded-xl border border-slate-200 shadow-2xs dark:border-zinc-800">
-      <table {...props} className="min-w-full text-left text-xs text-slate-700 dark:text-zinc-300" />
+export default function MessageList({ messages = [], isTyping, messagesEndRef, onSelectQuestion, user }) {
+  return (
+    <div className="mx-auto flex w-full max-w-[680px] flex-col gap-7 pb-2 select-text">
+      {messages.map((message, index) => (
+        <MessageItem
+          key={message.id || `${message.role}-${index}`}
+          role={message.role}
+          sources={message.sources}
+          suggestions={message.suggestions}
+          onSelectQuestion={onSelectQuestion}
+          rawText={typeof message.content === 'string' ? message.content : ''}
+          user={user}
+        >
+          {message.content}
+        </MessageItem>
+      ))}
+      {isTyping && <TypingIndicator />}
+      <div ref={messagesEndRef} />
     </div>
-  ),
-  th: (props) => (
-    <th {...props} className="border-b border-slate-200 bg-slate-50 px-3.5 py-2.5 font-semibold text-slate-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100" />
-  ),
-  td: (props) => (
-    <td {...props} className="border-b border-slate-100 px-3.5 py-2.5 dark:border-zinc-800/60" />
-  ),
-  code: ({ inline, ...props }) => (
-    inline ? (
-      <code {...props} className="rounded-md border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[12px] text-slate-800 dark:border-zinc-800 dark:bg-zinc-800/80 dark:text-zinc-200" />
-    ) : (
-      <code {...props} />
-    )
-  ),
-  pre: (props) => (
-    <pre {...props} className="my-3 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 p-4 font-mono text-[12px] text-slate-100 shadow-md dark:border-zinc-800 dark:bg-zinc-950" />
-  ),
-  p: (props) => <p {...props} className="mb-3 leading-relaxed last:mb-0" />,
-  ul: (props) => <ul {...props} className="mb-3 list-disc pl-5 space-y-1.5" />,
-  ol: (props) => <ol {...props} className="mb-3 list-decimal pl-5 space-y-1.5" />,
-  h1: (props) => <h1 {...props} className="mb-2 mt-4 text-lg font-bold tracking-tight text-slate-900 dark:text-zinc-100" />,
-  h2: (props) => <h2 {...props} className="mb-2 mt-3 text-base font-bold tracking-tight text-slate-900 dark:text-zinc-100" />,
-  h3: (props) => <h3 {...props} className="mb-1 mt-2.5 text-sm font-bold text-slate-900 dark:text-zinc-100" />,
-  strong: (props) => <strong {...props} className="font-semibold text-slate-900 dark:text-zinc-100" />,
-  blockquote: (props) => (
-    <blockquote {...props} className="border-l-2 border-indigo-500 pl-3 italic text-slate-600 dark:text-zinc-400 my-2" />
-  ),
-};
+  );
+}
 
-const groupSourcesByPage = (sources) => {
-  const best = new Map();
-  for (const source of sources) {
-    if (!best.has(source.pageNumber) || source.score > best.get(source.pageNumber).score) {
-      best.set(source.pageNumber, source);
-    }
-  }
-  return [...best.values()].sort((a, b) => a.pageNumber - b.pageNumber);
-};
-
-function MessageItem({ role, sources, children, rawText }) {
+function MessageItem({ role, children, sources = [], suggestions = [], onSelectQuestion, rawText, user }) {
   const [copied, setCopied] = useState(false);
   const [expandedSource, setExpandedSource] = useState(null);
-  const pages = groupSourcesByPage(sources ?? []);
+  const [imageError, setImageError] = useState(false);
   const isUser = role === 'user';
 
-  const handleCopy = () => {
-    const text = rawText || (typeof children === 'string' ? children : '');
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const sourcePages = Array.isArray(sources) ? sources.filter((source) => source && source.pageNumber != null && Number.isFinite(Number(source.pageNumber))) : [];
+  const uniquePages = [...new Map(sourcePages.map((source) => [String(source.pageNumber), source])).values()];
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(rawText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch { /* Clipboard access can be unavailable. */ }
+  };
+
+  if (isUser) {
+    return (
+      <div className="flex items-end justify-end gap-2.5">
+        <div className="max-w-[88%] rounded-xl rounded-br-sm bg-[var(--accent)] px-4 py-3 text-base leading-7 text-[var(--on-accent)] sm:max-w-[82%]">{children}</div>
+        <div className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--border)] bg-[var(--surface-raised)] text-[11px] font-bold text-[var(--accent-ink)]" title={user?.email || 'User'}>
+          {!imageError && user?.photoURL ? <img src={user.photoURL} alt="Your avatar" className="h-full w-full object-cover" onError={() => setImageError(true)} /> : getUserInitial(user)}
+        </div>
+      </div>
+    );
+  }
+
+  const markdownComponents = {
+    h1: (props) => <h2 {...props} className="mb-3 mt-6 text-xl font-semibold leading-7 first:mt-0" />,
+    h2: (props) => <h3 {...props} className="mb-3 mt-6 text-lg font-semibold leading-7 first:mt-0" />,
+    h3: (props) => <h4 {...props} className="mb-2 mt-5 text-base font-semibold first:mt-0" />,
+    p: (props) => <p {...props} className="mb-4 text-base leading-7 text-[var(--text-secondary)] last:mb-0" />,
+    strong: (props) => <strong {...props} className="font-semibold text-[var(--text)]" />,
+    a: (props) => <a {...props} target="_blank" rel="noreferrer" className="font-medium text-[var(--accent-ink)] underline decoration-[var(--accent)]/35 underline-offset-4 hover:decoration-[var(--accent)]" />,
+    ul: (props) => <ul {...props} className="mb-4 list-disc space-y-2 pl-5 text-base leading-7 text-[var(--text-secondary)] marker:text-[var(--accent)]" />,
+    ol: (props) => <ol {...props} className="mb-4 list-decimal space-y-2 pl-5 text-base leading-7 text-[var(--text-secondary)] marker:font-ui-mono marker:text-xs marker:text-[var(--accent-ink)]" />,
+    li: ({ children: itemChildren, ...props }) => {
+      const text = extractTextFromReactNode(itemChildren);
+      const interactive = isInteractiveQuestion(text);
+      return <li {...props} onClick={interactive && onSelectQuestion ? () => onSelectQuestion(cleanQuestionText(text)) : undefined} className={`pl-1 ${interactive ? 'cursor-pointer rounded-md transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent-ink)]' : ''}`} title={interactive ? 'Ask this question' : undefined}>{itemChildren}</li>;
+    },
+    blockquote: (props) => <blockquote {...props} className="my-5 border-l-2 border-[var(--accent)] bg-[var(--accent-soft)]/55 px-4 py-3 text-[var(--text-secondary)]" />,
+    table: (props) => <div className="my-5 overflow-x-auto rounded-lg border border-[var(--border)]"><table {...props} className="w-full border-collapse text-sm" /></div>,
+    th: (props) => <th {...props} className="border-b border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2.5 text-left font-semibold" />,
+    td: (props) => <td {...props} className="border-b border-[var(--border)] px-3 py-2.5 text-[var(--text-secondary)]" />,
+    pre: (props) => <pre {...props} className="custom-scrollbar my-4 overflow-x-auto rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-4 text-sm leading-6" />,
+    code: ({ children: codeChildren, className, ...props }) => <code {...props} className={`${!className ? 'rounded bg-[var(--accent-soft)] px-1.5 py-0.5 font-ui-mono text-[0.82em] text-[var(--accent-ink)]' : ''} ${className || ''}`}>{codeChildren}</code>,
+    hr: () => <hr className="my-6 border-[var(--border)]" />,
   };
 
   return (
-    <div className={`flex gap-3.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-      {/* Avatar */}
-      <div
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-bold transition-colors ${
-          isUser
-            ? 'bg-slate-900 text-white shadow-xs dark:bg-zinc-100 dark:text-zinc-950'
-            : 'border border-indigo-500/20 bg-indigo-50 text-indigo-600 dark:border-indigo-500/30 dark:bg-indigo-950/40 dark:text-indigo-400'
-        }`}
-      >
-        {isUser ? <User size={15} /> : <Sparkles size={15} />}
-      </div>
-
-      <div className={`flex min-w-0 max-w-[88%] flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-        {/* Header line */}
-        <div className={`mb-1.5 flex items-center gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
-          <span className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400">
-            {isUser ? 'You' : 'Document Assistant'}
-          </span>
-          {!isUser && (
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-            >
-              {copied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
-              <span>{copied ? 'Copied' : 'Copy'}</span>
-            </button>
-          )}
+    <article className="group flex w-full items-start gap-3">
+      <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent-ink)]"><Sparkles size={15} /></div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-2 flex h-8 items-center justify-between gap-3">
+          <div className="flex items-center gap-2"><span className="text-xs font-semibold">DocAnalyzer</span><span className="font-ui-mono text-[9px] uppercase tracking-wider text-[var(--text-muted)]">Grounded answer</span></div>
+          <button type="button" onClick={handleCopy} className="icon-button !h-8 !w-8 opacity-60 focus-visible:opacity-100 group-hover:opacity-100" title="Copy answer" aria-label="Copy answer">{copied ? <Check size={14} className="text-[var(--accent)]" /> : <Copy size={14} />}</button>
         </div>
 
-        {/* Bubble */}
-        <div
-          className={`rounded-2xl px-4 py-3.5 text-sm leading-relaxed transition-colors shadow-2xs ${
-            isUser
-              ? 'rounded-tr-xs bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-950'
-              : 'rounded-tl-xs border border-slate-200/90 bg-white text-slate-800 dark:border-zinc-800 dark:bg-zinc-900/90 dark:text-zinc-200'
-          }`}
-        >
-          {children}
-        </div>
+        <div className="min-w-0"><Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{typeof children === 'string' ? children : ''}</Markdown></div>
 
-        {/* Source Citations */}
-        {pages.length > 0 && (
-          <div className="mt-2.5 flex flex-col gap-1.5 w-full">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
-                Sources:
-              </span>
-              {pages.map((source) => {
-                const isSelected = expandedSource === source.pageNumber;
-                return (
-                  <button
-                    type="button"
-                    key={source.pageNumber}
-                    onClick={() => setExpandedSource(isSelected ? null : source.pageNumber)}
-                    title={source.snippet}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
-                      isSelected
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-950/60 dark:text-indigo-300'
-                        : 'border-slate-200 bg-slate-50/80 text-slate-600 hover:border-slate-300 hover:bg-slate-100 dark:border-zinc-800 dark:bg-zinc-800/60 dark:text-zinc-300 dark:hover:border-zinc-700'
-                    }`}
-                  >
-                    <FileText size={11} className="text-indigo-500 dark:text-indigo-400" />
-                    <span>Page {source.pageNumber}</span>
-                    <span className="text-slate-300 dark:text-zinc-600">•</span>
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400">{Math.round(source.score * 100)}%</span>
-                    {isSelected ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                  </button>
-                );
+        {suggestions.length > 0 && (
+          <div className="mt-5 border-t border-[var(--border)] pt-4">
+            <p className="ui-label mb-2.5 text-[var(--text-muted)]">Continue exploring</p>
+            <div className="space-y-1">
+              {suggestions.map((suggestion) => <button key={suggestion} type="button" onClick={() => onSelectQuestion?.(suggestion)} className="group/suggestion flex min-h-[40px] w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-left text-[13px] leading-5 text-[var(--text-secondary)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent-ink)]"><span>{suggestion}</span><ArrowUpRight size={13} className="shrink-0 opacity-50 group-hover/suggestion:opacity-100" /></button>)}
+            </div>
+          </div>
+        )}
+
+        {uniquePages.length > 0 && (
+          <div className="mt-5 border-t border-[var(--border)] pt-4">
+            <div className="mb-2.5 flex items-center gap-2"><FileText size={13} className="text-[var(--accent)]" /><span className="ui-label text-[var(--text-muted)]">Sources · {uniquePages.length}</span></div>
+            <div className="flex flex-wrap gap-2">
+              {uniquePages.map((source) => {
+                const pageKey = String(source.pageNumber);
+                const expanded = expandedSource === pageKey;
+                return <button key={pageKey} type="button" onClick={() => setExpandedSource(expanded ? null : pageKey)} aria-expanded={expanded} className={`flex min-h-[36px] items-center gap-2 rounded-md border px-3 text-xs font-medium transition-colors ${expanded ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-ink)]' : 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent-ink)]'}`}><FileText size={12} />Page {source.pageNumber}{expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</button>;
               })}
             </div>
-
-            {/* Expanded Source Preview Drawer */}
-            {expandedSource && (
-              <div className="rounded-xl border border-indigo-200/80 bg-indigo-50/40 p-3 text-xs leading-relaxed text-slate-700 dark:border-indigo-900/40 dark:bg-zinc-900 dark:text-zinc-300 animate-fadeIn">
-                <div className="mb-1 flex items-center justify-between text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                  <span>Passage from Page {expandedSource}</span>
-                  <button
-                    type="button"
-                    onClick={() => setExpandedSource(null)}
-                    className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200"
-                  >
-                    Close
-                  </button>
-                </div>
-                <p className="font-mono text-[11px] text-slate-600 dark:text-zinc-400">
-                  {pages.find((p) => p.pageNumber === expandedSource)?.snippet || 'No preview snippet available.'}
-                </p>
-              </div>
-            )}
+            {expandedSource !== null && <SourceExcerpt source={uniquePages.find((item) => String(item.pageNumber) === expandedSource)} onClose={() => setExpandedSource(null)} />}
           </div>
         )}
       </div>
+    </article>
+  );
+}
+
+function SourceExcerpt({ source, onClose }) {
+  return (
+    <div className="modal-panel mt-3 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
+      <div className="mb-2 flex items-center justify-between gap-3"><span className="text-xs font-semibold text-[var(--accent-ink)]">Page {source?.pageNumber} excerpt</span><button type="button" onClick={onClose} className="min-h-[32px] rounded px-2 text-xs text-[var(--text-muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]">Close</button></div>
+      <p className={`whitespace-pre-wrap text-sm leading-6 ${source?.snippet ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]'}`}>{source?.snippet || 'No excerpt was provided for this citation.'}</p>
     </div>
   );
 }
 
 function TypingIndicator() {
   return (
-    <div className="flex gap-3.5">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-50 text-indigo-600 dark:border-indigo-500/30 dark:bg-indigo-950/40 dark:text-indigo-400">
-        <Sparkles size={15} />
-      </div>
-      <div className="rounded-2xl rounded-tl-xs border border-slate-200/90 bg-white px-4 py-3 shadow-2xs dark:border-zinc-800 dark:bg-zinc-900/90">
-        <div className="flex items-center gap-2.5">
-          <span className="text-xs font-medium text-slate-500 dark:text-zinc-400">Retrieving context & generating answer</span>
-          <div className="flex gap-1">
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-500 [animation-delay:-0.2s]" />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-500 [animation-delay:-0.1s]" />
-            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-500" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function MessageList({ messages, isTyping, messagesEndRef }) {
-  return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-6 sm:px-8">
-      {messages.map((message, index) => (
-        <MessageItem
-          key={`${message.role}-${index}`}
-          role={message.role}
-          sources={message.sources}
-          rawText={typeof message.content === 'string' ? message.content : ''}
-        >
-          {message.role === 'ai' ? (
-            <div className="markdown-content">
-              <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {message.content}
-              </Markdown>
-            </div>
-          ) : (
-            message.content
-          )}
-        </MessageItem>
-      ))}
-
-      {isTyping && <TypingIndicator />}
-      <div ref={messagesEndRef} />
+    <div className="flex items-center gap-3" role="status" aria-label="Analyzing document">
+      <div className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent-ink)]"><Sparkles size={15} /></div>
+      <span className="text-sm text-[var(--text-muted)]">Analyzing document</span>
+      <div className="flex gap-1">{[0, 1, 2].map((dot) => <span key={dot} className="typing-dot h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />)}</div>
     </div>
   );
 }

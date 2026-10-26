@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const apiRoutes = require("./routes");
 const { initCollection } = require("./models/vector.model");
+const { connectDB } = require("./config/db");
 const { port, maxUploadMb } = require("./config/env");
 const errorHandler = require("./middleware/error.middleware");
 
@@ -26,14 +27,14 @@ app.use((req, res, next) => {
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
 
-// Lazy Qdrant collection initialization for serverless / local
-let collectionPromise = null;
+// Lazy Qdrant and MongoDB initialization for serverless / local
+let initPromise = null;
 app.use((req, res, next) => {
-  if (!collectionPromise) {
-    collectionPromise = initCollection().catch((err) => {
-      console.warn("[Qdrant] Collection init notice:", err.message);
-      collectionPromise = null;
-    });
+  if (!initPromise) {
+    initPromise = Promise.allSettled([
+      initCollection().catch((err) => console.warn("[Qdrant] Collection init notice:", err.message)),
+      connectDB().catch((err) => console.warn("[MongoDB] Init notice:", err.message)),
+    ]);
   }
   next();
 });
@@ -42,7 +43,7 @@ app.use((req, res, next) => {
 app.get("/", (req, res) => res.json({
   success: true,
   message: "PDF Chat API is running",
-  endpoints: { health: "GET /api/health", upload: "POST /api/pdf/upload", chat: "POST /api/chat" },
+  endpoints: { health: "GET /api/health", upload: "POST /api/pdf/upload", chat: "POST /api/chat", history: "GET /api/history?uid=" },
 }));
 app.get(["/health", "/api/health"], (req, res) => res.json({ success: true, status: "ok", maxUploadMb }));
 
@@ -57,7 +58,7 @@ app.use(errorHandler);
 
 async function startServer() {
   try {
-    await initCollection();
+    await Promise.allSettled([initCollection(), connectDB()]);
     app.listen(port, () => console.log(`PDF Chat API listening at http://localhost:${port}`));
   } catch (error) {
     console.error("Could not start PDF Chat API:", error.message);

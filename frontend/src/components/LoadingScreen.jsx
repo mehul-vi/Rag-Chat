@@ -1,14 +1,13 @@
-import { FileText } from 'lucide-react';
+import { FileText, Loader2 } from 'lucide-react';
 
 export default function LoadingScreen() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100/90 text-slate-700 transition-colors dark:bg-[#09090b] dark:text-zinc-300">
-      <div className="flex flex-col items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-md animate-pulse dark:bg-zinc-100 dark:text-zinc-950">
-          <FileText size={24} />
-        </div>
-        <p className="text-xs font-semibold tracking-wide text-slate-500 dark:text-zinc-400">Loading Document Intelligence...</p>
+    <main className="grid min-h-dvh place-items-center bg-[var(--workspace)] text-[var(--text)]">
+      <div className="text-center" role="status">
+        <FileText size={28} strokeWidth={1.6} className="mx-auto text-[var(--accent)]" />
+        <p className="mt-4 text-lg font-semibold tracking-[-0.02em]">DocAnalyzer</p>
+        <p className="mt-1 flex items-center justify-center gap-2 text-sm text-[var(--text-muted)]"><Loader2 size={14} className="animate-spin" />Opening your workspace…</p>
       </div>
-    </div>
+    </main>
   );
 }

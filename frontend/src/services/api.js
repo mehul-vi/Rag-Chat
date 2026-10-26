@@ -56,8 +56,20 @@ export const uploadPdf = (file) => {
 };
 
 // Returns { answer, sources }
-export const sendChatMessage = (question, documentId) =>
-  post('/chat', { question, documentId }, 'Failed to generate answer');
+export const sendChatMessage = (questionOrPayload, maybeDocId) => {
+  let question = '';
+  let documentId = '';
+
+  if (typeof questionOrPayload === 'object' && questionOrPayload !== null) {
+    question = questionOrPayload.question || questionOrPayload.message || '';
+    documentId = questionOrPayload.documentId || '';
+  } else {
+    question = questionOrPayload || '';
+    documentId = maybeDocId || '';
+  }
+
+  return post('/chat', { question, documentId }, 'Failed to generate answer');
+};
 
 // MongoDB History endpoints
 export const fetchMongoHistory = (uid) =>

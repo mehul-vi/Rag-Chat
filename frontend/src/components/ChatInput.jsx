@@ -1,70 +1,96 @@
-import { ArrowUp, Loader2, FileText } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowUp, Loader2, Lightbulb, ChevronRight, Paperclip } from 'lucide-react';
 
-const MAX_QUESTION_LENGTH = 1000;
+const SUGGESTED_PROMPTS = [
+  'Summarize this document',
+  'What are the key points?',
+  'Find important dates and figures',
+  'Explain the main conclusions',
+  'Which sections need attention?',
+];
 
-export default function ChatInput({
-  inputValue,
-  onChangeInput,
-  onSubmit,
-  isUploading,
-  isTyping,
-  canChat,
-  documentId,
-  fileName,
-}) {
+export default function ChatInput({ inputValue, onChangeInput, onSubmit, isUploading, isTyping, canChat, fileName }) {
+  const [showPromptsMenu, setShowPromptsMenu] = useState(false);
+  const menuRef = useRef(null);
+  const textareaRef = useRef(null);
+  const isBusy = isUploading || isTyping;
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`;
+  }, [inputValue]);
+
+  useEffect(() => {
+    const handleOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) setShowPromptsMenu(false);
+    };
+    const handleEscape = (event) => { if (event.key === 'Escape') setShowPromptsMenu(false); };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
+
+  const handleSubmit = (event) => {
+    event?.preventDefault();
+    if (!inputValue.trim() || isBusy || !canChat) return;
+    onSubmit();
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleSubmit();
+    }
+  };
+
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit();
-      }}
-      className="mx-auto flex w-full max-w-4xl flex-col gap-1.5 px-4 pb-4 pt-2 sm:px-8"
-    >
-      <div className="relative flex items-center rounded-2xl border border-slate-200/90 bg-white shadow-sm transition-all focus-within:border-indigo-500/50 focus-within:ring-4 focus-within:ring-indigo-500/10 dark:border-zinc-800 dark:bg-zinc-900/90 dark:focus-within:border-indigo-500/40 dark:focus-within:ring-indigo-500/10">
-        {/* Document Indicator Chip */}
-        {documentId && (
-          <div className="ml-3 hidden max-w-[150px] items-center gap-1.5 truncate rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-700 sm:flex dark:border-zinc-800 dark:bg-zinc-800/80 dark:text-zinc-300">
-            <FileText size={12} className="shrink-0 text-indigo-500" />
-            <span className="truncate">{fileName || 'Document'}</span>
+    <div className="relative w-full" ref={menuRef}>
+      {showPromptsMenu && (
+        <div className="modal-panel absolute bottom-full left-0 z-30 mb-3 w-full rounded-xl border border-[var(--border-strong)] bg-[var(--surface-raised)] p-2 shadow-[var(--shadow-soft)]" role="dialog" aria-label="Suggested prompts">
+          <div className="flex items-center gap-2 px-3 py-2 text-[var(--text-muted)]"><Lightbulb size={14} className="text-[var(--accent)]" /><span className="ui-label">Suggested prompts</span></div>
+          <div className="custom-scrollbar max-h-64 overflow-y-auto">
+            {SUGGESTED_PROMPTS.map((prompt) => (
+              <button key={prompt} type="button" onClick={() => { onChangeInput(prompt); setShowPromptsMenu(false); window.setTimeout(() => textareaRef.current?.focus(), 30); }} className="group flex min-h-[44px] w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent-ink)]">
+                <span>{prompt}</span><ChevronRight size={14} className="shrink-0 opacity-40 transition-transform group-hover:translate-x-0.5 group-hover:opacity-100" />
+              </button>
+            ))}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Input */}
-        <input
-          type="text"
+      <form onSubmit={handleSubmit} className="rounded-xl border border-[var(--border-strong)] bg-[var(--surface-raised)] transition-[border-color,box-shadow] duration-200 focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/10">
+        <textarea
+          ref={textareaRef}
+          rows={1}
           value={inputValue}
-          maxLength={MAX_QUESTION_LENGTH}
-          onChange={(e) => onChangeInput(e.target.value)}
-          disabled={!canChat}
-          placeholder={
-            isUploading
-              ? 'Processing document embeddings, please wait...'
-              : documentId
-              ? 'Ask anything about this document...'
-              : 'Upload a PDF above to start querying...'
-          }
-          className="h-12 w-full bg-transparent px-4 text-sm text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+          onChange={(event) => onChangeInput(event.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isBusy || !canChat}
+          placeholder={canChat ? 'Ask or search anything in this document…' : 'Upload a document to start chatting…'}
+          aria-label="Message about your document"
+          className="custom-scrollbar max-h-36 min-h-[54px] w-full resize-none bg-transparent px-4 pb-2 pt-4 text-base leading-6 text-[var(--text)] outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed"
         />
-
-        {/* Send Button */}
-        <div className="mr-2 flex items-center gap-1.5">
-          <button
-            type="submit"
-            disabled={!canChat || !inputValue.trim()}
-            title="Send query (Enter)"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white shadow-xs transition hover:bg-indigo-600 hover:shadow-indigo-600/25 disabled:cursor-not-allowed disabled:opacity-30 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-indigo-500 dark:hover:text-white"
-          >
-            {isTyping ? <Loader2 size={15} className="animate-spin" /> : <ArrowUp size={15} strokeWidth={2.5} />}
+        <div className="flex items-center justify-between gap-2 px-2.5 pb-2.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <button type="button" onClick={() => setShowPromptsMenu((open) => !open)} disabled={isBusy || !canChat} aria-expanded={showPromptsMenu} className="flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--accent-ink)]">
+              <Lightbulb size={14} /><span className="hidden min-[420px]:inline">Browse prompts</span>
+            </button>
+            {fileName && <span className="hidden min-w-0 items-center gap-1.5 border-l border-[var(--border)] pl-3 text-[11px] text-[var(--text-muted)] md:flex"><Paperclip size={11} /><span className="max-w-[120px] truncate">{fileName}</span></span>}
+          </div>
+          <button type="submit" disabled={!inputValue.trim() || isBusy || !canChat} aria-label="Send question" className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg transition-all ${inputValue.trim() && !isBusy && canChat ? 'bg-[var(--accent)] text-[var(--on-accent)] hover:bg-[var(--accent-hover)] active:scale-95' : 'bg-[var(--surface-subtle)] text-[var(--text-muted)]'}`}>
+            {isBusy ? <Loader2 size={17} className="animate-spin" /> : <ArrowUp size={18} />}
           </button>
         </div>
+      </form>
+      <div className="mt-2 flex items-center justify-between gap-3 px-1 text-[10px] leading-4 text-[var(--text-muted)]">
+        <span>AI can make mistakes. Check important details.</span>
+        <span className="hidden shrink-0 font-ui-mono sm:inline">ENTER TO SEND</span>
       </div>
-
-      <div className="flex items-center justify-between px-1 text-[11px] text-slate-400 dark:text-zinc-500">
-        <span>Answers derived strictly from document text</span>
-        <span className="hidden items-center gap-1 sm:inline-flex">
-          <kbd className="rounded border border-slate-200 px-1 py-0.5 text-[9px] font-mono dark:border-zinc-800">Enter</kbd> to query
-        </span>
-      </div>
-    </form>
+    </div>
   );
 }

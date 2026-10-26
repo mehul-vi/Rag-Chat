@@ -1,244 +1,219 @@
-import { FileText, X, LogOut, UserCircle2, Plus, History, Search, Trash2, Sun, Moon } from 'lucide-react';
-import UploadArea from './UploadArea';
-
-const formatHistoryDate = (value) => {
-  if (!value) return 'Just now';
-  let timestampMs = 0;
-  if (typeof value === 'number') {
-    timestampMs = value > 1e11 ? value : value * 1000;
-  } else if (value.seconds) {
-    timestampMs = value.seconds * 1000;
-  } else if (value instanceof Date) {
-    timestampMs = value.getTime();
-  } else {
-    const d = new Date(value);
-    timestampMs = isNaN(d.getTime()) ? 0 : d.getTime();
-  }
-
-  if (!timestampMs) return 'Recently';
-
-  const now = Date.now();
-  const diffMinutes = Math.floor((now - timestampMs) / 60000);
-  if (diffMinutes < 1) return 'Just now';
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  return new Date(timestampMs).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  });
-};
+import { useEffect, useRef, useState } from 'react';
+import {
+  FileText, Star, ChevronDown, Settings, HelpCircle, X, Plus, Trash2,
+  Files, LogOut, Sun, Moon, Check, Upload, Sparkles,
+} from 'lucide-react';
 
 export default function Sidebar({
-  user,
-  sessionHistory,
-  activeSessionId,
-  searchQuery,
-  onChangeSearch,
-  onSelectSession,
-  onDeleteSession,
-  onStartNewChat,
-  onLogout,
-  onCloseMobileMenu,
-  isMobileMenuOpen,
-  uploadStatus,
-  fileName,
-  uploadProgress,
-  uploadStage,
-  uploadError,
-  onFileSelect,
-  theme,
-  onToggleTheme,
+  user, onUpdateUser, documents = [], activeDocId, onSelectDoc,
+  onCloseMobileMenu, isMobileMenuOpen, onStartNewUpload, onDeleteDoc,
+  onToggleFavourite, theme, onToggleTheme, onLogout,
 }) {
-  const isDark = theme === 'dark';
+  const [filter, setFilter] = useState('recent');
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [workspace, setWorkspace] = useState('Personal workspace');
+  const [modal, setModal] = useState(null);
+  const workspaceRef = useRef(null);
+  const workspaces = ['Personal workspace', 'Research library', 'Legal & contracts'];
+  const visibleDocuments = filter === 'starred' ? documents.filter((doc) => doc.isFavourite) : documents;
+  const initials = (user?.displayName || user?.email || 'U').slice(0, 1).toUpperCase();
+
+  useEffect(() => {
+    const close = (event) => {
+      if (workspaceRef.current && !workspaceRef.current.contains(event.target)) setWorkspaceMenuOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, []);
 
   return (
     <>
-      {/* Mobile Backdrop Overlay */}
       {isMobileMenuOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-xs lg:hidden"
-          onClick={onCloseMobileMenu}
-          aria-hidden="true"
-        />
+        <button type="button" aria-label="Close navigation" onClick={onCloseMobileMenu} className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px] lg:hidden" />
       )}
 
-      {/* Sidebar Container */}
       <aside
-        className={`fixed inset-y-2 left-2 z-50 flex w-[290px] flex-col rounded-3xl border border-slate-200/80 bg-white p-3.5 shadow-2xl transition-transform duration-300 sm:inset-y-3 sm:left-3 lg:relative lg:inset-auto lg:z-auto lg:translate-x-0 lg:shadow-xs dark:border-zinc-800/80 dark:bg-zinc-950 ${
-          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-[120%]'
-        }`}
+        id="app-sidebar"
+        aria-label="Workspace navigation"
+        className={`fixed inset-y-0 left-0 z-50 flex w-[290px] max-w-[calc(100vw-32px)] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] transition-transform duration-200 ease-out lg:static lg:z-auto lg:w-[272px] lg:max-w-none lg:translate-x-0 lg:rounded-l-xl lg:border lg:border-r-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        {/* Header / Logo */}
-        <div className="flex items-center justify-between px-1.5 py-1">
+        <div className="flex h-[72px] shrink-0 items-center justify-between border-b border-[var(--border)] px-5">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white shadow-xs dark:bg-zinc-100 dark:text-zinc-950">
-              <FileText size={18} />
-            </div>
+            <FileText size={22} strokeWidth={1.8} className="text-[var(--accent)]" />
             <div>
-              <p className="text-sm font-bold tracking-tight text-slate-900 dark:text-zinc-100">
-                PDF Chat RAG
-              </p>
-              <p className="text-[10px] font-semibold tracking-wider text-indigo-600 uppercase dark:text-indigo-400">
-                Enterprise AI
-              </p>
+              <p className="text-[17px] font-bold leading-5 tracking-[-0.025em]">DocAnalyzer</p>
+              <p className="font-ui-mono text-[9px] uppercase tracking-[0.1em] text-[var(--text-muted)]">Document workspace</p>
             </div>
           </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={onToggleTheme}
-              title={isDark ? 'Switch to Light mode' : 'Switch to Dark mode'}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
-            >
-              {isDark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} />}
-            </button>
-            <button
-              type="button"
-              onClick={onCloseMobileMenu}
-              title="Close sidebar"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 lg:hidden dark:text-zinc-500 dark:hover:bg-zinc-900 dark:hover:text-zinc-300"
-            >
-              <X size={17} />
-            </button>
-            <button
-              type="button"
-              onClick={onLogout}
-              title="Sign out"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600 dark:text-zinc-500 dark:hover:bg-red-950/40 dark:hover:text-red-400"
-            >
-              <LogOut size={15} />
-            </button>
-          </div>
+          <button type="button" onClick={onCloseMobileMenu} className="icon-button lg:hidden" aria-label="Close sidebar"><X size={18} /></button>
         </div>
 
-        {/* User Card */}
-        <div className="mt-3 flex items-center gap-2.5 rounded-2xl border border-slate-200/60 bg-slate-50 p-2.5 dark:border-zinc-800/60 dark:bg-zinc-900/60">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-slate-600 shadow-2xs dark:bg-zinc-800 dark:text-zinc-300">
-            <UserCircle2 size={18} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">Account</p>
-            <p className="truncate text-xs font-semibold text-slate-800 dark:text-zinc-200" title={user?.email}>
-              {user?.email || 'Guest User'}
-            </p>
-          </div>
-        </div>
+        <div className="flex min-h-0 flex-1 flex-col px-3 py-4">
+          <button type="button" onClick={onStartNewUpload} className="primary-button mx-2 mb-5 w-[calc(100%-16px)] justify-between">
+            <span className="flex items-center gap-2"><Plus size={16} /> New document</span>
+            <Upload size={14} className="opacity-70" />
+          </button>
 
-        {/* New Chat Button */}
-        <button
-          type="button"
-          onClick={onStartNewChat}
-          className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-xs font-semibold text-white shadow-xs transition hover:bg-indigo-600 hover:shadow-indigo-600/20 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-indigo-500 dark:hover:text-white"
-        >
-          <Plus size={15} /> New Chat Session
-        </button>
-
-        {/* Chat History Panel */}
-        <div className="mt-4 flex min-h-0 flex-1 flex-col">
-          <div className="flex items-center justify-between px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
-            <span className="flex items-center gap-1.5">
-              <History size={13} /> Chat History
-            </span>
-            {sessionHistory.length > 0 && (
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-600 dark:bg-zinc-800 dark:text-zinc-400">
-                {sessionHistory.length}
-              </span>
-            )}
+          <div className="mx-2 grid grid-cols-2 border-b border-[var(--border)]" role="tablist" aria-label="Document filter">
+            {[{ id: 'recent', label: 'Recent', icon: Files }, { id: 'starred', label: 'Starred', icon: Star }].map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={filter === item.id}
+                onClick={() => setFilter(item.id)}
+                className={`relative flex min-h-[42px] items-center justify-center gap-2 text-xs font-medium transition-colors ${filter === item.id ? 'text-[var(--accent-ink)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
+              >
+                <item.icon size={14} />{item.label}
+                {filter === item.id && <span className="absolute inset-x-2 bottom-[-1px] h-0.5 bg-[var(--accent)]" />}
+              </button>
+            ))}
           </div>
 
-          {sessionHistory.length > 3 && (
-            <div className="relative mt-2">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
-              <input
-                type="text"
-                placeholder="Filter sessions..."
-                value={searchQuery}
-                onChange={(e) => onChangeSearch(e.target.value)}
-                className="h-8.5 w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-8 text-xs text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/10 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-200 dark:placeholder:text-zinc-500 dark:focus:border-indigo-500 dark:focus:bg-zinc-900"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => onChangeSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-          )}
+          <div className="mb-2 mt-5 flex items-center justify-between px-3">
+            <span className="ui-label text-[var(--text-muted)]">{filter === 'recent' ? 'Your library' : 'Saved documents'}</span>
+            <span className="font-ui-mono text-[10px] text-[var(--text-muted)]">{visibleDocuments.length.toString().padStart(2, '0')}</span>
+          </div>
 
-          <div className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-            {sessionHistory.length === 0 ? (
-              <div className="px-2 py-8 text-center">
-                <p className="text-xs font-medium text-slate-500 dark:text-zinc-400">
-                  {searchQuery ? 'No matching chats found.' : 'No saved sessions yet.'}
-                </p>
-                <p className="mt-1 text-[10px] text-slate-400 dark:text-zinc-500">
-                  Upload a PDF to create your first session.
-                </p>
+          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-1">
+            {visibleDocuments.length === 0 ? (
+              <div className="mx-2 mt-2 border border-dashed border-[var(--border)] px-4 py-7 text-center">
+                <FileText size={19} strokeWidth={1.5} className="mx-auto text-[var(--text-muted)]" />
+                <p className="mt-3 text-xs font-medium text-[var(--text-secondary)]">{filter === 'starred' ? 'No starred documents' : 'Your library is empty'}</p>
+                <p className="mt-1 text-[11px] leading-5 text-[var(--text-muted)]">{filter === 'starred' ? 'Star a document to keep it close.' : 'Upload a PDF to start a conversation.'}</p>
               </div>
-            ) : (
-              sessionHistory.map((session) => {
-                const isActive = activeSessionId === session.id;
-                return (
-                  <div
-                    key={session.id}
-                    onClick={() => onSelectSession(session)}
-                    className={`group flex cursor-pointer items-center gap-2.5 rounded-xl border px-2.5 py-2 transition ${
-                      isActive
-                        ? 'border-indigo-500/30 bg-indigo-50/70 text-indigo-900 shadow-2xs dark:border-indigo-500/40 dark:bg-indigo-950/40 dark:text-indigo-200'
-                        : 'border-transparent text-slate-700 hover:bg-slate-100/80 dark:text-zinc-300 dark:hover:bg-zinc-900'
-                    }`}
-                  >
-                    <FileText
-                      size={14}
-                      className={isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-zinc-500'}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className={`truncate text-xs font-semibold ${isActive ? 'text-indigo-950 dark:text-indigo-100' : 'text-slate-800 dark:text-zinc-200'}`}>
-                        {session.title || session.fileName || 'PDF Document'}
-                      </p>
-                      <p className="mt-0.5 text-[10px] text-slate-400 dark:text-zinc-500">
-                        {formatHistoryDate(session.updatedAt || session.createdAt)}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      title="Delete chat"
-                      onClick={(e) => onDeleteSession(e, session.id)}
-                      className="flex h-6 w-6 items-center justify-center rounded-md text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 dark:text-zinc-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
-                    >
-                      <Trash2 size={12} />
+            ) : visibleDocuments.map((doc) => {
+              const selected = doc.id === activeDocId;
+              return (
+                <div key={doc.id} className={`group relative mb-1 flex items-center rounded-lg transition-colors ${selected ? 'bg-[var(--accent-soft)]' : 'hover:bg-[var(--surface-subtle)]'}`}>
+                  <button type="button" onClick={() => onSelectDoc(doc)} className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-3 text-left">
+                    <FileText size={15} className={selected ? 'shrink-0 text-[var(--accent)]' : 'shrink-0 text-[var(--text-muted)]'} />
+                    <span className={`truncate text-[13px] ${selected ? 'font-semibold text-[var(--accent-ink)]' : 'text-[var(--text-secondary)]'}`}>{doc.title || doc.fileName}</span>
+                  </button>
+                  <div className="flex shrink-0 items-center pr-1">
+                    <button type="button" onClick={() => onToggleFavourite?.(doc.id)} className="icon-button !h-8 !w-8" title={doc.isFavourite ? 'Remove from starred' : 'Add to starred'} aria-label={doc.isFavourite ? `Unstar ${doc.title}` : `Star ${doc.title}`}>
+                      <Star size={13} className={doc.isFavourite ? 'fill-[var(--accent)] text-[var(--accent)]' : ''} />
                     </button>
+                    <button type="button" onClick={() => onDeleteDoc?.(doc.id)} className="icon-button !h-8 !w-8 opacity-60 hover:!text-[var(--danger)] focus-visible:opacity-100 group-hover:opacity-100 lg:opacity-0" title="Remove document" aria-label={`Remove ${doc.title}`}><Trash2 size={13} /></button>
                   </div>
-                );
-              })
-            )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Bottom Upload Section */}
-        <div className="mt-3 border-t border-slate-200/80 pt-3 dark:border-zinc-800/80">
-          <p className="mb-2 px-1 text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-zinc-500">
-            Document Context
-          </p>
-          <UploadArea
-            status={uploadStatus}
-            fileName={fileName}
-            uploadProgress={uploadProgress}
-            uploadStage={uploadStage}
-            error={uploadError}
-            onSelect={onFileSelect}
-          />
+        <div className="shrink-0 border-t border-[var(--border)] p-3">
+          <div className="mx-1 mb-3 px-2 py-1">
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-xs font-semibold"><Sparkles size={14} className="text-[var(--accent)]" /> Premium trial</span>
+              <span className="font-ui-mono text-[10px] text-[var(--accent-ink)]">6 DAYS</span>
+            </div>
+            <button type="button" onClick={() => setModal('trial')} className="mt-1 text-[11px] text-[var(--text-muted)] underline-offset-4 hover:text-[var(--accent-ink)] hover:underline">View plan details</button>
+          </div>
+
+          <div className="relative" ref={workspaceRef}>
+            <button type="button" onClick={() => setWorkspaceMenuOpen((open) => !open)} aria-expanded={workspaceMenuOpen} className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[var(--surface-subtle)]">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-bold text-[var(--accent-ink)]">{initials}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold">{workspace}</span>
+                <span className="block truncate text-[10px] text-[var(--text-muted)]">{user?.email}</span>
+              </span>
+              <ChevronDown size={14} className={`shrink-0 text-[var(--text-muted)] transition-transform ${workspaceMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {workspaceMenuOpen && (
+              <div className="modal-panel absolute bottom-full left-0 z-30 mb-2 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--surface-raised)] p-1.5 shadow-[var(--shadow-soft)]">
+                <p className="ui-label px-2 py-2 text-[var(--text-muted)]">Switch workspace</p>
+                {workspaces.map((item) => (
+                  <button key={item} type="button" onClick={() => { setWorkspace(item); setWorkspaceMenuOpen(false); }} className="flex min-h-[40px] w-full items-center justify-between rounded-md px-2.5 text-left text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-subtle)]">
+                    {item}{workspace === item && <Check size={13} className="text-[var(--accent)]" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-2 grid grid-cols-[1fr_1fr_auto] gap-1 border-t border-[var(--border)] pt-2">
+            <button type="button" onClick={() => setModal('settings')} className="flex min-h-[40px] items-center justify-center gap-2 rounded-md text-xs text-[var(--text-muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text)]"><Settings size={14} />Settings</button>
+            <button type="button" onClick={() => setModal('help')} className="flex min-h-[40px] items-center justify-center gap-2 rounded-md text-xs text-[var(--text-muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text)]"><HelpCircle size={14} />Help</button>
+            <button type="button" onClick={onToggleTheme} className="icon-button !h-10 !w-10" aria-label={theme === 'dark' ? 'Use light theme' : 'Use dark theme'}>{theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}</button>
+          </div>
         </div>
       </aside>
+
+      {modal === 'trial' && (
+        <Modal title="Premium trial" onClose={() => setModal(null)}>
+          <div className="border-y border-[var(--border)] py-4">
+            <div className="flex justify-between text-sm"><span className="text-[var(--text-muted)]">Current plan</span><strong>Premium trial</strong></div>
+            <div className="mt-3 flex justify-between text-sm"><span className="text-[var(--text-muted)]">Time remaining</span><strong className="text-[var(--accent-ink)]">6 days</strong></div>
+          </div>
+          <ul className="mt-5 space-y-3 text-sm text-[var(--text-secondary)]">
+            {['Unlimited PDF parsing and indexing', 'Semantic document search', 'Answers with page-level citations', 'Multi-document workspace'].map((item) => <li key={item} className="flex gap-2.5"><Check size={16} className="mt-0.5 shrink-0 text-[var(--accent)]" />{item}</li>)}
+          </ul>
+          <button type="button" onClick={() => setModal(null)} className="primary-button mt-6 w-full">Done</button>
+        </Modal>
+      )}
+
+      {modal === 'settings' && (
+        <SettingsModal user={user} onUpdateUser={onUpdateUser} theme={theme} onToggleTheme={onToggleTheme} onClose={() => setModal(null)} onLogout={onLogout} />
+      )}
+
+      {modal === 'help' && (
+        <Modal title="Help & shortcuts" onClose={() => setModal(null)}>
+          <div className="space-y-5 text-sm">
+            <div><h3 className="font-semibold">Start a conversation</h3><p className="mt-1 leading-6 text-[var(--text-secondary)]">Upload a PDF, wait for indexing, then ask about themes, figures, dates, or conclusions.</p></div>
+            <div><h3 className="font-semibold">Check the evidence</h3><p className="mt-1 leading-6 text-[var(--text-secondary)]">Open a source citation to read its excerpt, or use the document preview to inspect the original.</p></div>
+            <div className="border-t border-[var(--border)] pt-4"><span className="ui-label text-[var(--text-muted)]">Keyboard</span><div className="mt-3 flex justify-between text-xs"><span>Send message</span><kbd className="font-ui-mono">Enter</kbd></div><div className="mt-2 flex justify-between text-xs"><span>New line</span><kbd className="font-ui-mono">Shift + Enter</kbd></div></div>
+          </div>
+          <button type="button" onClick={() => setModal(null)} className="secondary-button mt-6 w-full">Close</button>
+        </Modal>
+      )}
     </>
+  );
+}
+
+function Modal({ title, onClose, children }) {
+  const panelRef = useRef(null);
+  useEffect(() => {
+    const previous = document.activeElement;
+    const onKey = (event) => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    panelRef.current?.focus();
+    return () => { document.removeEventListener('keydown', onKey); previous?.focus?.(); };
+  }, [onClose]);
+  return (
+    <div className="modal-backdrop fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className="modal-panel max-h-[90dvh] w-full max-w-[440px] overflow-y-auto rounded-xl border border-[var(--border-strong)] bg-[var(--surface-raised)] p-6 shadow-[var(--shadow-soft)]">
+        <div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-semibold tracking-[-0.02em]">{title}</h2><button type="button" onClick={onClose} className="icon-button" aria-label={`Close ${title}`}><X size={18} /></button></div>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function SettingsModal({ user, onUpdateUser, theme, onToggleTheme, onClose, onLogout }) {
+  const [email, setEmail] = useState(user?.email || '');
+  const [saved, setSaved] = useState(false);
+  const save = (event) => {
+    event.preventDefault();
+    if (!email.trim()) return;
+    const updated = { ...user, email: email.trim(), displayName: email.trim().split('@')[0] };
+    onUpdateUser?.(updated);
+    try { localStorage.setItem('rag_chat_user', JSON.stringify(updated)); } catch { /* Optional. */ }
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1800);
+  };
+  return (
+    <Modal title="Workspace settings" onClose={onClose}>
+      <div className="flex items-center justify-between border-b border-[var(--border)] pb-5">
+        <div><h3 className="text-sm font-semibold">Appearance</h3><p className="mt-1 text-xs text-[var(--text-muted)]">Currently using {theme} mode</p></div>
+        <button type="button" onClick={onToggleTheme} className="secondary-button !min-h-[40px] !px-3">{theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}{theme === 'dark' ? 'Light' : 'Dark'}</button>
+      </div>
+      <form onSubmit={save} className="mt-5">
+        <label htmlFor="account-email" className="text-sm font-semibold">Account email</label>
+        <input id="account-email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-[var(--border-strong)] bg-[var(--surface)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]" />
+        <button type="submit" className="primary-button mt-3 w-full">{saved ? <><Check size={16} />Saved</> : 'Save changes'}</button>
+      </form>
+      {onLogout && <button type="button" onClick={onLogout} className="mt-5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg text-sm text-[var(--danger)] transition-colors hover:bg-[var(--danger-soft)]"><LogOut size={15} />Log out</button>}
+    </Modal>
   );
 }

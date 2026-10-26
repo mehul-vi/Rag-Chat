@@ -1,89 +1,49 @@
-import { Menu, UploadCloud, Plus, Sun, Moon } from 'lucide-react';
+import { Plus, X, Sun, Moon, Menu, MessageSquare, FileText, ChevronRight } from 'lucide-react';
 
 export default function ChatHeader({
-  fileName,
-  documentId,
-  isUploading,
-  onOpenMobileMenu,
-  onUploadClick,
-  onNewChat,
-  theme,
-  onToggleTheme,
+  documents = [], activeDocId, activeDoc, onSelectDoc, onCloseDocTab,
+  onNewDocTab, theme, onToggleTheme, onOpenMobileMenu, mobileView, onChangeMobileView,
 }) {
-  const isDark = theme === 'dark';
-
   return (
-    <header className="flex min-h-[64px] items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-md transition-colors sm:px-6 dark:border-zinc-800/80 dark:bg-zinc-950/80">
-      <div className="flex min-w-0 items-center gap-3">
-        <button
-          type="button"
-          onClick={onOpenMobileMenu}
-          title="Open menu"
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 lg:hidden dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
-        >
-          <Menu size={18} />
-        </button>
-
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="max-w-[200px] truncate text-sm font-bold tracking-tight text-slate-900 sm:max-w-md sm:text-base dark:text-zinc-100">
-              {fileName || 'Document Assistant'}
-            </h2>
-            {documentId ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                Active
-              </span>
-            ) : (
-              <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-                No Document
-              </span>
-            )}
+    <header className="relative z-20 shrink-0 border-b border-[var(--border)] bg-[var(--surface)]">
+      <div className="flex h-[64px] items-center gap-3 px-3 sm:px-5 lg:h-[72px] lg:px-6">
+        <button type="button" onClick={onOpenMobileMenu} aria-label="Open navigation" className="icon-button lg:hidden"><Menu size={19} /></button>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+            <span>Workspace</span><ChevronRight size={11} /><span>{activeDoc ? 'Analysis' : 'New analysis'}</span>
           </div>
-          <p className="mt-0.5 truncate text-[11px] text-slate-500 sm:text-xs dark:text-zinc-400">
-            {documentId
-              ? 'Query passages, summarize sections, and extract key metrics'
-              : 'Upload a PDF to start analyzing with citations'}
-          </p>
+          <h1 className="mt-0.5 truncate text-sm font-semibold tracking-[-0.01em] sm:text-[15px]">{activeDoc ? activeDoc.title || activeDoc.fileName : 'Document intelligence'}</h1>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button type="button" onClick={onNewDocTab} className="secondary-button !min-h-[40px] !px-3 max-sm:!w-10 max-sm:!px-0" title="Upload a PDF"><Plus size={16} /><span className="hidden sm:inline">Upload PDF</span></button>
+          <button type="button" onClick={onToggleTheme} className="icon-button border-[var(--border)] bg-[var(--surface-raised)]" aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        {/* Theme Toggle Button */}
-        <button
-          type="button"
-          onClick={onToggleTheme}
-          title={isDark ? 'Switch to Light mode' : 'Switch to Dark mode'}
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-2xs transition hover:bg-slate-100 hover:text-slate-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-        >
-          {isDark ? <Sun size={16} className="text-amber-400" /> : <Moon size={16} className="text-slate-600" />}
-        </button>
+      {documents.length > 0 && (
+        <div className="flex h-[48px] items-center border-t border-[var(--border)] pr-2">
+          <div className="no-scrollbar flex min-w-0 flex-1 items-end gap-1 self-stretch overflow-x-auto px-2 sm:px-4" role="tablist" aria-label="Open documents">
+            {documents.map((doc) => {
+              const selected = doc.id === activeDocId;
+              return (
+                <div key={doc.id} className={`group relative flex h-full shrink-0 items-center border-b-2 ${selected ? 'border-[var(--accent)]' : 'border-transparent'}`} role="presentation">
+                  <button type="button" role="tab" aria-selected={selected} onClick={() => onSelectDoc(doc)} className={`flex h-full max-w-[180px] items-center gap-2 px-3 text-xs font-medium transition-colors sm:max-w-[220px] ${selected ? 'text-[var(--accent-ink)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`} title={doc.title || doc.fileName}>
+                    <FileText size={13} className="shrink-0" /><span className="truncate">{doc.title || doc.fileName}</span>
+                  </button>
+                  <button type="button" onClick={() => onCloseDocTab(doc.id)} className="icon-button !h-7 !w-7 opacity-60 focus-visible:opacity-100 group-hover:opacity-100 lg:opacity-0" aria-label={`Close ${doc.title || doc.fileName}`} title="Close document"><X size={12} /></button>
+                </div>
+              );
+            })}
+          </div>
 
-        {/* Upload / Replace PDF */}
-        <label className="cursor-pointer" title="Upload or replace PDF">
-          <input
-            type="file"
-            accept=".pdf,application/pdf"
-            onChange={onUploadClick}
-            disabled={isUploading}
-            className="hidden"
-          />
-          <span className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 dark:hover:text-zinc-100">
-            <UploadCloud size={14} className="text-indigo-600 dark:text-indigo-400" />
-            <span className="hidden sm:inline">{documentId ? 'Replace PDF' : 'Upload PDF'}</span>
-          </span>
-        </label>
-
-        {/* New Chat */}
-        <button
-          type="button"
-          onClick={onNewChat}
-          title="Start new chat"
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-2xs transition hover:bg-slate-100 hover:text-slate-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-        >
-          <Plus size={17} />
-        </button>
-      </div>
+          <div className="ml-2 flex shrink-0 items-center rounded-lg bg-[var(--surface-subtle)] p-1 lg:hidden" role="group" aria-label="Mobile workspace view">
+            <button type="button" onClick={() => onChangeMobileView('chat')} aria-pressed={mobileView === 'chat'} className={`flex min-h-[32px] items-center gap-1.5 rounded-md px-2.5 text-[11px] font-medium transition-colors ${mobileView === 'chat' ? 'bg-[var(--surface-raised)] text-[var(--text)] shadow-sm' : 'text-[var(--text-muted)]'}`}><MessageSquare size={12} />Chat</button>
+            <button type="button" onClick={() => onChangeMobileView('doc')} aria-pressed={mobileView === 'doc'} className={`flex min-h-[32px] items-center gap-1.5 rounded-md px-2.5 text-[11px] font-medium transition-colors ${mobileView === 'doc' ? 'bg-[var(--surface-raised)] text-[var(--text)] shadow-sm' : 'text-[var(--text-muted)]'}`}><FileText size={12} />Document</button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

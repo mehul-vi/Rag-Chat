@@ -1,569 +1,553 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { uploadPdf, sendChatMessage } from './api';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FileText, FileUp, ShieldCheck, ArrowRight, Loader2, AlertCircle, X } from 'lucide-react';
+import { uploadPdf, sendChatMessage } from './services/api';
 import {
   auth,
-  createAccountWithEmail,
-  createChatSession,
-  deleteChatSession,
-  isFirebaseConfigured,
-  loadChatHistory,
-  loginWithEmail,
   onAuthStateChanged,
-  signInWithGoogle,
   signOutUser,
+  createChatSession,
   updateChatSession,
-} from './firebase';
-
+  deleteChatSession,
+  loadChatHistory,
+} from './services/firebase';
 import Sidebar from './components/Sidebar';
 import ChatHeader from './components/ChatHeader';
 import ChatInput from './components/ChatInput';
 import MessageList from './components/MessageList';
-import UploadBanner from './components/UploadBanner';
-import EmptyHero from './components/EmptyHero';
-import QuickPrompts from './components/QuickPrompts';
-import AuthScreen from './components/AuthScreen';
+import DocViewer from './components/DocViewer';
 import LoadingScreen from './components/LoadingScreen';
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-const WELCOME_MESSAGE = {
-  role: 'ai',
-  content: 'Welcome to Document Intelligence. Upload any PDF file to analyze, extract insights, and ask questions with verifiable citations.',
-};
-
-const DEFAULT_AUTH_FORM = { email: '', password: '' };
-
-const QUICK_PROMPTS = [
-  'Summarize the core takeaways and executive summary.',
-  'What are the key conclusions or findings in this document?',
-  'List any action items, dates, and next steps mentioned.',
-  'Extract any structured data, tables, or metric comparisons.',
-];
-
-const validatePdf = (file) => {
-  if (!file) return 'No file selected.';
-  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-    return 'Please select a valid PDF file.';
-  }
-  if (file.size > MAX_FILE_SIZE) {
-    return `File is ${(file.size / (1024 * 1024)).toFixed(1)}MB. Maximum allowed is 10MB.`;
-  }
-  return '';
-};
+const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 export default function App() {
+  const [documents, setDocuments] = useState([]);
+  const [activeDocId, setActiveDocId] = useState(null);
   const [uploadStatus, setUploadStatus] = useState('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStage, setUploadStage] = useState('');
   const [uploadError, setUploadError] = useState('');
-  const [fileName, setFileName] = useState('');
-  const [documentId, setDocumentId] = useState(null);
-  const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(() => Boolean(auth));
-  const [authMode, setAuthMode] = useState('login');
-  const [authData, setAuthData] = useState(DEFAULT_AUTH_FORM);
-  const [authError, setAuthError] = useState('');
-  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
-  const [sessionHistory, setSessionHistory] = useState([]);
-  const [activeSessionId, setActiveSessionId] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [chatError, setChatError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('rag_chat_theme');
-    if (saved) return saved;
-    return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
+  const [mobileView, setMobileView] = useState('chat');
+  const [isDragging, setIsDragging] = useState(false);
+  const [user, setUser] = useState(() => {
+    try {
+      if (auth?.currentUser) {
+        return {
+          uid: auth.currentUser.uid,
+          email: auth.currentUser.email,
+          displayName: auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'User',
+          photoURL: auth.currentUser.photoURL,
+        };
+      }
+      const saved = localStorage.getItem('rag_chat_user');
+      if (saved) return JSON.parse(saved);
+    } catch { /* Use the local preview identity. */ }
+    return { uid: 'guest_user', email: 'user@docanalyzer.com', displayName: 'User' };
   });
-
-  useEffect(() => {
-    localStorage.setItem('rag_chat_theme', theme);
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme]);
-
-  const handleToggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  };
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem('rag_chat_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch { /* Default to light. */ }
+    return 'light';
+  });
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
-  const activeSessionIdRef = useRef(activeSessionId);
-  const isUploading = uploadStatus === 'uploading';
+  const isTypingRef = useRef(false);
 
-  useEffect(() => {
-    activeSessionIdRef.current = activeSessionId;
-  }, [activeSessionId]);
-
-  const activateSession = useCallback((session, updateHash = true) => {
-    setActiveSessionId(session.id);
-    const sessionMessages =
-      Array.isArray(session.messages) && session.messages.length ? session.messages : [WELCOME_MESSAGE];
-    setMessages(sessionMessages);
-    setDocumentId(session.documentId || null);
-    setFileName(session.fileName || session.title || '');
-    setUploadStatus(session.documentId ? 'success' : 'idle');
-    setUploadError('');
-    setInputValue('');
-    setIsMobileMenuOpen(false);
-
-    if (updateHash && window.location.hash !== `#/chat/${session.id}`) {
-      window.location.hash = `#/chat/${session.id}`;
-    }
+  const handleToggleTheme = useCallback(() => {
+    setTheme((current) => (current === 'light' ? 'dark' : 'light'));
   }, []);
 
-  const startFreshChat = useCallback((updateHash = true) => {
-    setActiveSessionId(null);
-    setMessages([WELCOME_MESSAGE]);
-    setDocumentId(null);
-    setFileName('');
-    setUploadStatus('idle');
-    setUploadProgress(0);
-    setUploadStage('');
-    setUploadError('');
-    setInputValue('');
-    setIsTyping(false);
-    setIsMobileMenuOpen(false);
-
-    if (updateHash && window.location.hash !== '#/new') {
-      window.location.hash = '#/new';
-    }
-  }, []);
-
-  // Listen to Auth State
   useEffect(() => {
-    if (!auth) return;
+    try { localStorage.setItem('rag_chat_theme', theme); } catch { /* Storage is optional. */ }
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
 
+  useEffect(() => {
+    if (!auth) return undefined;
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
-      setUser(nextUser);
+      if (nextUser) {
+        const userData = {
+          uid: nextUser.uid,
+          email: nextUser.email,
+          displayName: nextUser.displayName || nextUser.email?.split('@')[0] || 'User',
+          photoURL: nextUser.photoURL,
+        };
+        setUser(userData);
+        try { localStorage.setItem('rag_chat_user', JSON.stringify(userData)); } catch { /* Optional. */ }
+      }
       setAuthLoading(false);
     });
-
-    return () => unsubscribe();
+    return unsubscribe;
   }, []);
 
-  // Sync with URL hash routing
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash || '';
-      if (hash.startsWith('#/chat/')) {
-        const id = hash.replace('#/chat/', '').trim();
-        if (id && id !== activeSessionIdRef.current) {
-          const match = sessionHistory.find((s) => s.id === id);
-          if (match) {
-            activateSession(match, false);
-          }
-        }
-      } else if (hash === '#/new') {
-        startFreshChat(false);
-      } else if (hash === '#/signup') {
-        setAuthMode('signup');
-      } else if (hash === '#/login') {
-        setAuthMode('login');
-      }
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [sessionHistory, activateSession, startFreshChat]);
-
-  // Load chat history when user changes
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    let isCurrent = true;
+    const uid = user?.uid || user?.email || 'guest_user';
+    let isCancelled = false;
 
     const fetchHistory = async () => {
       try {
-        const history = await loadChatHistory(user.uid);
-        if (!isCurrent) return;
-        setSessionHistory(history);
+        const historyDocs = await loadChatHistory(uid);
+        if (isCancelled) return;
+        if (Array.isArray(historyDocs) && historyDocs.length > 0) {
+          const mappedDocs = historyDocs.map((session) => ({
+            id: session.id,
+            sessionId: session.id,
+            title: session.title || session.fileName || 'Untitled Document',
+            fileName: session.fileName || session.title || 'document.pdf',
+            documentId: session.documentId,
+            totalPages: Number(session.totalPages) || 0,
+            currentPage: Number(session.currentPage) || 1,
+            isFavourite: Boolean(session.isFavourite),
+            previewUrl: null,
+            messages: Array.isArray(session.messages) && session.messages.length > 0
+              ? session.messages
+              : [{
+                  role: 'ai',
+                  content: `**${session.fileName || session.title}** is ready.\n\nAsk a question or request a summary.`,
+                }],
+          }));
 
-        const hash = window.location.hash || '';
-        let targetSession = null;
-
-        if (hash.startsWith('#/chat/')) {
-          const id = hash.replace('#/chat/', '').trim();
-          targetSession = history.find((s) => s.id === id);
-        }
-
-        if (hash === '#/new') {
-          startFreshChat(false);
-          return;
-        }
-
-        if (!targetSession && history.length > 0) {
-          targetSession = history[0];
-        }
-
-        if (targetSession) {
-          activateSession(targetSession, true);
-        } else {
-          startFreshChat(false);
+          setDocuments((current) => {
+            const currentMap = new Map(current.map((d) => [d.id, d]));
+            for (const hDoc of mappedDocs) {
+              if (!currentMap.has(hDoc.id)) {
+                currentMap.set(hDoc.id, hDoc);
+              }
+            }
+            const combined = Array.from(currentMap.values());
+            setActiveDocId((currentId) => currentId || combined[0]?.id || null);
+            return combined;
+          });
         }
       } catch (err) {
-        console.error('Error fetching chat history:', err);
-        if (isCurrent) setAuthError(err.message || 'Failed to load history');
+        console.warn('Could not load chat history:', err);
       }
     };
 
     fetchHistory();
+    return () => { isCancelled = true; };
+  }, [user?.uid, user?.email]);
 
-    return () => {
-      isCurrent = false;
-    };
-  }, [user, activateSession, startFreshChat]);
+  const activeDoc = useMemo(
+    () => documents.find((doc) => doc.id === activeDocId) || null,
+    [documents, activeDocId],
+  );
 
-  // Auto scroll to bottom
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, []);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+    scrollToBottom();
+  }, [activeDoc?.messages, isTyping, scrollToBottom]);
 
-  const handleDeleteSession = async (e, sessionId) => {
-    e.stopPropagation();
-    if (!user) return;
-
-    try {
-      await deleteChatSession(sessionId, user.uid);
-      const updatedHistory = sessionHistory.filter((s) => s.id !== sessionId);
-      setSessionHistory(updatedHistory);
-
-      if (activeSessionId === sessionId) {
-        if (updatedHistory.length > 0) {
-          activateSession(updatedHistory[0], true);
-        } else {
-          startFreshChat(true);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to delete session:', err);
-    }
-  };
-
-  const handleAuthSubmit = async (e) => {
-    e.preventDefault();
-    if (!isFirebaseConfigured) {
-      setAuthError('Configure Firebase to enable login.');
-      return;
-    }
-
-    try {
-      setIsSubmittingAuth(true);
-      setAuthError('');
-
-      if (authMode === 'login') {
-        await loginWithEmail(authData.email, authData.password);
-      } else {
-        await createAccountWithEmail(authData.email, authData.password);
-      }
-
-      setAuthData(DEFAULT_AUTH_FORM);
-      window.location.hash = '#/chat';
-    } catch (error) {
-      setAuthError(error.message || 'Authentication failed.');
-    } finally {
-      setIsSubmittingAuth(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    if (!isFirebaseConfigured) {
-      setAuthError('Configure Firebase to enable Google sign in.');
-      return;
-    }
-
-    try {
-      setAuthError('');
-      await signInWithGoogle();
-      window.location.hash = '#/chat';
-    } catch (error) {
-      setAuthError(error.message || 'Google sign-in failed.');
-    }
-  };
-
-  const handleLogout = async () => {
-    await signOutUser();
-    setSessionHistory([]);
-    setActiveSessionId(null);
-    setMessages([WELCOME_MESSAGE]);
-    window.location.hash = '#/login';
-  };
-
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !user) return;
-
-    const validationError = validatePdf(file);
-    if (validationError) {
-      setUploadStatus('error');
-      setUploadError(validationError);
-      return;
-    }
-
-    setFileName(file.name);
-    setUploadStatus('uploading');
-    setUploadProgress(15);
-    setUploadStage('Uploading document to server...');
-    setUploadError('');
-    setIsTyping(false);
+  const handleSelectDoc = useCallback((doc) => {
+    setActiveDocId(doc.id);
+    setChatError('');
     setIsMobileMenuOpen(false);
+    setMobileView('chat');
+  }, []);
 
-    const progressTimer1 = setTimeout(() => {
-      setUploadProgress(45);
-      setUploadStage('Extracting text and analyzing pages...');
-    }, 1200);
+  const handleCloseDocTab = useCallback((docId) => {
+    setDocuments((current) => {
+      const nextDocs = current.filter((doc) => doc.id !== docId);
+      setActiveDocId((currentId) => currentId === docId ? nextDocs[0]?.id || null : currentId);
+      return nextDocs;
+    });
+  }, []);
 
-    const progressTimer2 = setTimeout(() => {
-      setUploadProgress(75);
-      setUploadStage('Generating AI embeddings & vector indexing...');
-    }, 3000);
+  const handleDeleteDoc = useCallback((docId) => {
+    const uid = user?.uid || user?.email || 'guest_user';
+    setDocuments((current) => {
+      const deletedDoc = current.find((doc) => doc.id === docId);
+      if (deletedDoc?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(deletedDoc.previewUrl);
+      deleteChatSession(deletedDoc?.sessionId || docId, uid).catch(console.warn);
+      const nextDocs = current.filter((doc) => doc.id !== docId);
+      setActiveDocId((currentId) => currentId === docId ? nextDocs[0]?.id || null : currentId);
+      return nextDocs;
+    });
+  }, [user?.uid, user?.email]);
+
+  const handleToggleFavourite = useCallback((docId) => {
+    const uid = user?.uid || user?.email || 'guest_user';
+    setDocuments((current) => current.map((doc) => {
+      if (doc.id === docId) {
+        const nextFav = !doc.isFavourite;
+        updateChatSession(doc.sessionId || doc.id, { isFavourite: nextFav }, uid).catch(console.warn);
+        return { ...doc, isFavourite: nextFav };
+      }
+      return doc;
+    }));
+  }, [user?.uid, user?.email]);
+
+  const handleTriggerUpload = useCallback(() => {
+    if (uploadStatus !== 'uploading') fileInputRef.current?.click();
+  }, [uploadStatus]);
+
+  const processFile = useCallback(async (file) => {
+    if (!file || uploadStatus === 'uploading') return;
+    setUploadError('');
+    setChatError('');
+
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setUploadError('Please choose a valid PDF file.');
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError('This PDF is too large. Please choose a file smaller than 25 MB.');
+      return;
+    }
+
+    const localBlobUrl = URL.createObjectURL(file);
+    setUploadStatus('uploading');
+    setUploadProgress(20);
 
     try {
-      const data = await uploadPdf(file);
-      clearTimeout(progressTimer1);
-      clearTimeout(progressTimer2);
-      setUploadProgress(100);
-      setUploadStage('Ready!');
-
-      const starterMessage = {
+      const response = await uploadPdf(file);
+      if (!response?.documentId) throw new Error('The server did not return a document ID. Please try again.');
+      const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
+      const initialMessages = [{
         role: 'ai',
-        content: `**"${file.name}"** processed successfully!\n\n- **Pages:** ${data.totalPages}\n- **Chunks Indexed:** ${data.totalChunks}\n\nYou can now ask any question about this document or click one of the suggested prompts below.`,
-      };
+        content: `**${file.name}** is ready.\n\nI’ve indexed “${cleanTitle}”. Ask a question, request a summary, or explore one of the suggested prompts below.`,
+        suggestions: [
+          'What is the main theme of this document?',
+          'Summarize the key points in bullet form.',
+          'What are the most important conclusions?',
+        ],
+      }];
 
-      setDocumentId(data.documentId);
-      setFileName(file.name);
-      setUploadStatus('success');
-      setMessages([starterMessage]);
-
-      const nextSession = {
-        title: file.name,
-        fileName: file.name,
-        documentId: data.documentId,
-        messages: [starterMessage],
-      };
-
-      let newSessionId;
-      if (activeSessionId && !documentId) {
-        await updateChatSession(activeSessionId, nextSession, user.uid);
-        newSessionId = activeSessionId;
-      } else {
-        newSessionId = await createChatSession({ uid: user.uid, ...nextSession });
+      const uid = user?.uid || user?.email || 'guest_user';
+      let createdSessionId = null;
+      try {
+        createdSessionId = await createChatSession({
+          uid,
+          title: cleanTitle,
+          fileName: file.name,
+          documentId: response.documentId,
+          totalPages: response.totalPages || 0,
+          currentPage: 1,
+          isFavourite: false,
+          messages: initialMessages,
+        });
+      } catch (err) {
+        console.warn('Session persistence notice:', err.message);
       }
 
-      setActiveSessionId(newSessionId);
-      window.location.hash = `#/chat/${newSessionId}`;
+      const docId = createdSessionId || `document-${response.documentId}`;
+      const newDoc = {
+        id: docId,
+        sessionId: createdSessionId || docId,
+        title: cleanTitle,
+        fileName: file.name,
+        totalPages: response.totalPages || 0,
+        currentPage: 1,
+        isFavourite: false,
+        documentId: response.documentId,
+        previewUrl: localBlobUrl,
+        messages: initialMessages,
+      };
 
-      setSessionHistory((prev) => [
-        { id: newSessionId, ...nextSession, updatedAt: { seconds: Math.floor(Date.now() / 1000) } },
-        ...prev.filter((session) => session.id !== newSessionId),
-      ]);
+      setUploadProgress(100);
+      setDocuments((current) => [newDoc, ...current.filter((doc) => doc.id !== newDoc.id)]);
+      setActiveDocId(newDoc.id);
+      setMobileView('chat');
+      setUploadStatus('success');
     } catch (error) {
-      clearTimeout(progressTimer1);
-      clearTimeout(progressTimer2);
-      setUploadStatus('error');
-      setUploadError(error.message || 'Failed to process PDF.');
-      console.error('Upload error:', error);
+      URL.revokeObjectURL(localBlobUrl);
+      setUploadStatus('idle');
+      setUploadError(error.message || 'PDF upload failed. Please try again.');
+    } finally {
+      window.setTimeout(() => {
+        setUploadStatus((current) => current === 'success' ? 'idle' : current);
+        setUploadProgress(0);
+      }, 1200);
     }
+  }, [uploadStatus, user?.uid, user?.email]);
+
+  const handleFileChange = (event) => {
+    processFile(event.target.files?.[0]);
+    event.target.value = '';
   };
 
-  const handleSendMessage = async (textToSend) => {
-    const question = (typeof textToSend === 'string' ? textToSend : inputValue).trim();
-    if (!question || !documentId || !user || isUploading || isTyping) return;
+  const handleDrop = (event) => {
+    event.preventDefault();
+    setIsDragging(false);
+    processFile(event.dataTransfer.files?.[0]);
+  };
 
-    const userMessage = { role: 'user', content: question };
-    const nextMessages = [...messages, userMessage];
-    setInputValue('');
-    setMessages(nextMessages);
+  const handleSendMessage = async (customPrompt) => {
+    const question = (typeof customPrompt === 'string' ? customPrompt : inputValue).trim();
+    if (!question || isTypingRef.current) return;
+    if (!activeDoc?.documentId) {
+      setChatError('Upload and index a PDF before asking questions.');
+      return;
+    }
+
+    const targetDocId = activeDoc.id;
+    const targetSessionId = activeDoc.sessionId || activeDoc.id;
+    const targetDocumentId = activeDoc.documentId;
+    const uid = user?.uid || user?.email || 'guest_user';
+    isTypingRef.current = true;
     setIsTyping(true);
+    setChatError('');
+
+    const updatedWithUser = [...activeDoc.messages, { role: 'user', content: question }];
+    setDocuments((current) => current.map((doc) => doc.id === targetDocId
+      ? { ...doc, messages: updatedWithUser }
+      : doc));
+    setInputValue('');
+
+    updateChatSession(targetSessionId, { messages: updatedWithUser }, uid).catch(console.warn);
 
     try {
-      const { answer, sources } = await sendChatMessage(question, documentId);
-      const completeMessages = [...nextMessages, { role: 'ai', content: answer, sources }];
-      setMessages(completeMessages);
-
-      let currentId = activeSessionId;
-      if (!currentId) {
-        currentId = await createChatSession({
-          uid: user.uid,
-          title: fileName || 'PDF Chat',
-          fileName,
-          documentId,
-          messages: completeMessages,
-        });
-        setActiveSessionId(currentId);
-        window.location.hash = `#/chat/${currentId}`;
-      } else {
-        await updateChatSession(
-          currentId,
-          {
-            title: fileName || 'PDF Chat',
-            fileName,
-            documentId,
-            messages: completeMessages,
-          },
-          user.uid
-        );
+      const result = await sendChatMessage(question, targetDocumentId);
+      if (typeof result?.answer !== 'string' && typeof result?.reply !== 'string') {
+        throw new Error('The server returned no answer. Please try again.');
       }
+      const answer = result.answer || result.reply;
+      const aiMessage = {
+        role: 'ai',
+        content: answer,
+        sources: Array.isArray(result.sources) ? result.sources : [],
+      };
+      const updatedWithAi = [...updatedWithUser, aiMessage];
+      setDocuments((current) => current.map((doc) => doc.id === targetDocId
+        ? { ...doc, messages: updatedWithAi }
+        : doc));
 
-      setSessionHistory((prev) => {
-        const existing = prev.find((item) => item.id === currentId);
-        const updatedItem = {
-          ...(existing || {}),
-          id: currentId,
-          title: fileName || 'PDF Chat',
-          fileName,
-          documentId,
-          messages: completeMessages,
-          updatedAt: { seconds: Math.floor(Date.now() / 1000) },
-        };
-        return [updatedItem, ...prev.filter((item) => item.id !== currentId)];
-      });
+      updateChatSession(targetSessionId, { messages: updatedWithAi }, uid).catch(console.warn);
     } catch (error) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'ai',
-          content: `**Error:** ${error.message || 'Failed to get answer. Please check if backend is running.'}`,
-        },
-      ]);
+      setChatError(error.message || 'Could not get an answer from the document service.');
     } finally {
+      isTypingRef.current = false;
       setIsTyping(false);
     }
   };
 
-  const filteredHistory = useMemo(() => {
-    if (!searchQuery.trim()) return sessionHistory;
-    const q = searchQuery.toLowerCase();
-    return sessionHistory.filter(
-      (s) =>
-        s.title?.toLowerCase().includes(q) ||
-        s.fileName?.toLowerCase().includes(q)
-    );
-  }, [sessionHistory, searchQuery]);
-
-  const canChat = Boolean(documentId) && !isUploading && !!user;
-
-  if (authLoading) {
-    return <LoadingScreen />;
-  }
-
-  if (!user) {
-    return (
-      <AuthScreen
-        mode={authMode}
-        form={authData}
-        setForm={setAuthData}
-        authError={authError}
-        isSubmitting={isSubmittingAuth}
-        onSubmit={handleAuthSubmit}
-        onGoogleSignIn={handleGoogleLogin}
-        toggleMode={() => {
-          const next = authMode === 'login' ? 'signup' : 'login';
-          setAuthMode(next);
-          window.location.hash = `#/${next}`;
-          setAuthError('');
-        }}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
-      />
-    );
-  }
+  if (authLoading) return <LoadingScreen />;
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-slate-100/90 p-2 sm:p-3 transition-colors dark:bg-[#09090b]">
-      {/* Modular Sidebar */}
-      <Sidebar
-        user={user}
-        sessionHistory={filteredHistory}
-        activeSessionId={activeSessionId}
-        searchQuery={searchQuery}
-        onChangeSearch={setSearchQuery}
-        onSelectSession={(session) => activateSession(session, true)}
-        onDeleteSession={handleDeleteSession}
-        onStartNewChat={() => startFreshChat(true)}
-        onLogout={handleLogout}
-        onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
-        isMobileMenuOpen={isMobileMenuOpen}
-        uploadStatus={uploadStatus}
-        fileName={fileName}
-        uploadProgress={uploadProgress}
-        uploadStage={uploadStage}
-        uploadError={uploadError}
-        onFileSelect={handleFileChange}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
-      />
-
-      {/* Main Chat Area */}
-      <main className="ml-0 flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xs transition-colors lg:ml-3 dark:border-zinc-800/80 dark:bg-[#111114]">
-        <ChatHeader
-          fileName={fileName}
-          documentId={documentId}
-          isUploading={isUploading}
-          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-          onUploadClick={handleFileChange}
-          onNewChat={() => startFreshChat(true)}
+    <div
+      className="h-dvh min-h-[540px] w-full overflow-hidden bg-[var(--workspace)] text-[var(--text)]"
+      onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }}
+      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsDragging(false); }}
+      onDrop={handleDrop}
+    >
+      <div className="flex h-full w-full overflow-hidden lg:p-3">
+        <Sidebar
+          user={user}
+          onUpdateUser={setUser}
+          documents={documents}
+          activeDocId={activeDocId}
+          onSelectDoc={handleSelectDoc}
+          onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
+          isMobileMenuOpen={isMobileMenuOpen}
+          onStartNewUpload={handleTriggerUpload}
+          onDeleteDoc={handleDeleteDoc}
+          onToggleFavourite={handleToggleFavourite}
           theme={theme}
           onToggleTheme={handleToggleTheme}
+          onLogout={signOutUser}
         />
 
-        <UploadBanner
-          status={uploadStatus}
-          fileName={fileName}
-          stage={uploadStage}
-          progress={uploadProgress}
-          error={uploadError}
-          onRetry={() => fileInputRef.current?.click()}
-        />
+        <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden border-[var(--border)] bg-[var(--surface)] lg:rounded-r-xl lg:border lg:border-l-0">
+          <ChatHeader
+            documents={documents}
+            activeDocId={activeDocId}
+            activeDoc={activeDoc}
+            onSelectDoc={handleSelectDoc}
+            onCloseDocTab={handleCloseDocTab}
+            onNewDocTab={handleTriggerUpload}
+            theme={theme}
+            onToggleTheme={handleToggleTheme}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+            mobileView={mobileView}
+            onChangeMobileView={setMobileView}
+          />
 
-        {/* Viewport for messages or empty state hero */}
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {!documentId && uploadStatus === 'idle' && messages.length <= 1 ? (
-            <EmptyHero
-              onSelectFile={handleFileChange}
-              isUploading={isUploading}
-              uploadStage={uploadStage}
+          {!activeDoc ? (
+            <EmptyWorkspace
+              onSelectFile={processFile}
+              uploadStatus={uploadStatus}
               uploadProgress={uploadProgress}
               uploadError={uploadError}
+              onDismissError={() => setUploadError('')}
             />
           ) : (
-            <MessageList
-              messages={messages}
-              isTyping={isTyping}
-              messagesEndRef={messagesEndRef}
-            />
+            <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+              <section
+                aria-label="Document conversation"
+                className={`min-h-0 min-w-0 flex-col overflow-hidden border-[var(--border)] bg-[var(--surface)] lg:flex lg:w-[43%] lg:max-w-[600px] lg:shrink-0 lg:border-r xl:w-[42%] ${mobileView === 'chat' ? 'flex w-full' : 'hidden'}`}
+              >
+                {(uploadError || chatError) && (
+                  <div className="shrink-0 px-4 pt-4 sm:px-6">
+                    <AlertMessage message={uploadError || chatError} onDismiss={() => { setUploadError(''); setChatError(''); }} />
+                  </div>
+                )}
+                <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-7">
+                  <MessageList
+                    messages={activeDoc.messages || []}
+                    isTyping={isTyping}
+                    messagesEndRef={messagesEndRef}
+                    onSelectQuestion={handleSendMessage}
+                    user={user}
+                    theme={theme}
+                  />
+                </div>
+                <div className="shrink-0 border-t border-[var(--border)] bg-[var(--surface)] px-4 pb-4 pt-3 sm:px-6 lg:px-7">
+                  <ChatInput
+                    inputValue={inputValue}
+                    onChangeInput={setInputValue}
+                    onSubmit={() => handleSendMessage()}
+                    isUploading={uploadStatus === 'uploading'}
+                    isTyping={isTyping}
+                    canChat={Boolean(activeDoc.documentId)}
+                    documentId={activeDoc.documentId}
+                    fileName={activeDoc.fileName}
+                  />
+                </div>
+              </section>
+
+              <section
+                aria-label="Document preview"
+                className={`min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--workspace)] lg:flex ${mobileView === 'doc' ? 'flex w-full' : 'hidden'}`}
+              >
+                <DocViewer activeDoc={activeDoc} pdfPreviewUrl={activeDoc.previewUrl} theme={theme} />
+              </section>
+            </div>
           )}
+        </main>
+      </div>
+
+      <input ref={fileInputRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={handleFileChange} />
+
+      {isDragging && (
+        <div className="pointer-events-none fixed inset-3 z-[70] flex items-center justify-center rounded-2xl border-2 border-dashed border-[var(--accent)] bg-[var(--surface)]/95 shadow-[var(--shadow-soft)]">
+          <div className="text-center">
+            <FileUp className="mx-auto text-[var(--accent)]" size={34} />
+            <p className="mt-4 text-xl font-semibold">Drop your PDF to begin</p>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">We’ll prepare it for questions and citations.</p>
+          </div>
         </div>
-
-        {/* Quick Suggestion Pills */}
-        {documentId && messages.length <= 2 && !isTyping && !isUploading && (
-          <QuickPrompts
-            prompts={QUICK_PROMPTS}
-            onSelectPrompt={handleSendMessage}
-          />
-        )}
-
-        {/* Chat Input Bar */}
-        <ChatInput
-          inputValue={inputValue}
-          onChangeInput={setInputValue}
-          onSubmit={handleSendMessage}
-          isUploading={isUploading}
-          isTyping={isTyping}
-          canChat={canChat}
-          documentId={documentId}
-          fileName={fileName}
-        />
-      </main>
+      )}
     </div>
   );
 }
+
+function AlertMessage({ message, onDismiss }) {
+  return (
+    <div role="alert" className="flex items-start gap-3 rounded-lg border border-[var(--danger)]/25 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">
+      <AlertCircle size={17} className="mt-0.5 shrink-0" />
+      <span className="min-w-0 flex-1 leading-6">{message}</span>
+      <button type="button" onClick={onDismiss} aria-label="Dismiss error" className="-mr-2 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-md hover:bg-[var(--danger)]/10">
+        <X size={15} />
+      </button>
+    </div>
+  );
+}
+
+function EmptyWorkspace({ onSelectFile, uploadStatus, uploadProgress, uploadError, onDismissError }) {
+  const isUploading = uploadStatus === 'uploading';
+  return (
+    <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
+      <section className="mx-auto grid min-h-full w-full max-w-[1240px] items-center gap-10 px-5 py-8 sm:px-10 lg:grid-cols-[0.92fr_1.08fr] lg:gap-14 lg:px-14 lg:py-12">
+        <div className="max-w-[540px]">
+          <div className="mb-5 flex items-center gap-2 text-[var(--accent-ink)]">
+            <ShieldCheck size={16} />
+            <span className="ui-label">Grounded document intelligence</span>
+          </div>
+          <h1 className="max-w-[480px] text-[2.25rem] font-semibold leading-[1.12] tracking-[-0.045em] sm:text-[2.8rem]">
+            Your documents,<br />ready to answer.
+          </h1>
+          <p className="mt-5 max-w-[460px] text-base leading-7 text-[var(--text-secondary)]">
+            Upload a PDF and ask questions in plain language. Get clear answers with citations that lead back to the original pages.
+          </p>
+
+          <label className={`group mt-8 flex min-h-[156px] w-full flex-col items-center justify-center rounded-xl border border-dashed px-6 py-6 text-center transition-colors duration-200 ${isUploading ? 'cursor-wait border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--border-strong)] bg-[var(--surface-raised)] hover:border-[var(--accent)] hover:bg-[var(--accent-soft)]/45'}`}>
+            <input type="file" accept=".pdf,application/pdf" className="hidden" disabled={isUploading} onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) onSelectFile(file);
+            }} />
+            {isUploading ? (
+              <>
+                <Loader2 size={24} className="animate-spin text-[var(--accent)]" />
+                <p className="mt-3 text-sm font-semibold">Preparing your document…</p>
+                <div className="mt-3 h-1.5 w-full max-w-[240px] overflow-hidden rounded-full bg-[var(--border)]" role="progressbar" aria-label="Document upload progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress}>
+                  <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${uploadProgress}%` }} />
+                </div>
+                <span className="mt-2 font-ui-mono text-[11px] text-[var(--text-muted)]">{uploadProgress}%</span>
+              </>
+            ) : (
+              <>
+                <FileUp size={25} strokeWidth={1.6} className="text-[var(--accent)] transition-transform duration-200 group-hover:-translate-y-1" />
+                <p className="mt-3 text-sm font-semibold">Drop a PDF here, or <span className="underline decoration-[var(--accent)]/40 underline-offset-4">browse files</span></p>
+                <p className="mt-1.5 text-xs text-[var(--text-muted)]">PDF only · Up to 25 MB</p>
+              </>
+            )}
+          </label>
+
+          {uploadError && <div className="mt-4"><AlertMessage message={uploadError} onDismiss={onDismissError} /></div>}
+
+          <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[var(--text-muted)]">
+            <span>Semantic search</span><span aria-hidden="true">·</span><span>Page-level sources</span><span aria-hidden="true">·</span><span>Scanned PDF support</span>
+          </div>
+        </div>
+
+        <DocumentIllustration />
+      </section>
+    </div>
+  );
+}
+
+function DocumentIllustration() {
+  return (
+    <div className="relative mx-auto hidden w-full max-w-[570px] sm:block" aria-hidden="true">
+      <div className="absolute inset-x-8 bottom-[-16px] top-8 rotate-2 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)]" />
+      <div className="relative overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--surface-raised)] shadow-[var(--shadow-soft)]">
+        <div className="flex h-12 items-center justify-between border-b border-[var(--border)] px-5">
+          <div className="flex items-center gap-2 text-xs font-medium text-[var(--text-secondary)]"><FileText size={14} className="text-[var(--accent)]" /> Research briefing.pdf</div>
+          <span className="font-ui-mono text-[10px] text-[var(--text-muted)]">12 PAGES</span>
+        </div>
+        <div className="grid grid-cols-[1fr_142px] gap-7 p-7 sm:p-9">
+          <div>
+            <div className="h-2.5 w-16 rounded-sm bg-[var(--accent)]/65" />
+            <div className="mt-5 h-5 w-4/5 rounded-sm bg-[var(--text)]/80" />
+            <div className="mt-2 h-5 w-3/5 rounded-sm bg-[var(--text)]/80" />
+            <div className="mt-7 space-y-2.5">
+              {[100, 94, 98, 82, 96, 68].map((width, index) => <div key={index} className="h-1.5 rounded-full bg-[var(--border-strong)]" style={{ width: `${width}%` }} />)}
+            </div>
+            <div className="mt-7 border-l-2 border-[var(--accent)] bg-[var(--accent-soft)]/65 px-4 py-3">
+              <div className="h-1.5 w-full rounded-full bg-[var(--accent)]/30" />
+              <div className="mt-2 h-1.5 w-3/4 rounded-full bg-[var(--accent)]/30" />
+            </div>
+          </div>
+          <div className="border-l border-[var(--border)] pl-5">
+            <span className="ui-label text-[var(--text-muted)]">Ask document</span>
+            <p className="mt-4 text-xs font-medium leading-5 text-[var(--text-secondary)]">What are the key findings?</p>
+            <div className="mt-5 border-t border-[var(--border)] pt-4">
+              <div className="space-y-2">
+                <div className="h-1.5 w-full rounded-full bg-[var(--border-strong)]" />
+                <div className="h-1.5 w-5/6 rounded-full bg-[var(--border-strong)]" />
+                <div className="h-1.5 w-4/6 rounded-full bg-[var(--border-strong)]" />
+              </div>
+              <span className="mt-4 inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--accent-ink)]">Page 4 <ArrowRight size={10} /></span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-between border-t border-[var(--border)] px-5 py-3 text-[10px] text-[var(--text-muted)]">
+          <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" /> Answers linked to evidence</span>
+          <span className="font-ui-mono">01 / 12</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export { App as DocAnalyzer };

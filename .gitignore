@@ -32,4 +32,6 @@ uploads/
 Thumbs.db
 .idea/
 .vscode/
+.kilo/
 *.swp
+

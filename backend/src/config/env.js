@@ -5,7 +5,7 @@ module.exports = {
   qdrantUrl: process.env.QDRANT_URL || "http://localhost:6333",
   qdrantApiKey: process.env.QDRANT_API_KEY || undefined,
   groqApiKey: process.env.GROQ_API_KEY || undefined,
-  groqModel: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+  groqModel: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
   geminiApiKey: process.env.GEMINI_API_KEY || undefined,
   embeddingModel: process.env.EMBEDDING_MODEL || "gemini-embedding-001",
   embeddingDimensions: Number(process.env.EMBEDDING_DIMENSIONS || 768),

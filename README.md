@@ -26,7 +26,7 @@ An enterprise-grade, full-stack **Retrieval-Augmented Generation (RAG)** chatbot
 - **👁️ Dual-Engine Parsing (OCR Fallback)**:
   - Native selectable text extraction using fast stream parsing.
   - Automatic **Gemini 2.5 Flash Vision OCR** fallback when pages are scanned or image-based.
-- **⚡ Ultra-Low Latency Inference**: Powered by **Groq** (`llama-3.3-70b-versatile`) with sub-second token generation.
+- **⚡ Ultra-Low Latency Inference**: Powered by **Groq** (`openai/gpt-oss-120b` with automatic fallback to `openai/gpt-oss-20b` and `gemini-2.5-flash`) with sub-second token generation.
 - **🔍 Isolated Document Search**: Vector embeddings are indexed in **Qdrant** with strict `documentId` payload filtering — multiple PDFs and user sessions never cross-contaminate.
 - **🔒 Firebase Authentication**: Google OAuth and Email/Password authentication with seamless local session persistence.
 - **🎨 Modern Responsive UI**: Crafted with React 19, Tailwind CSS v4, dynamic dark theme accents, syntax-highlighted Markdown rendering, and quick query prompts.
@@ -83,7 +83,7 @@ flowchart TD
 | **Vector Database** | Qdrant (Cosine similarity with payload keyword index) |
 | **Embeddings** | Google Gemini `gemini-embedding-001` (768 dimensions) |
 | **Vision / OCR** | Google Gemini `gemini-2.5-flash` |
-| **LLM Inference** | Groq SDK (`llama-3.3-70b-versatile`) |
+| **LLM Inference** | Groq SDK (`openai/gpt-oss-120b`, `openai/gpt-oss-20b`) & Gemini fallback |
 | **Authentication** | Firebase Authentication (Google Sign-In & Email/Password) |
 | **Hosting** | Vercel (Frontend & Serverless Backend) / Render |
 
@@ -161,7 +161,7 @@ QDRANT_COLLECTION=pdf_documents
 
 # Groq LLM API (https://console.groq.com)
 GROQ_API_KEY=your_groq_api_key_here
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=openai/gpt-oss-120b
 
 # Google Gemini API (https://aistudio.google.com)
 GEMINI_API_KEY=your_gemini_api_key_here
